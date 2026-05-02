@@ -12,6 +12,7 @@ class UInputMappingContext;
 class UInputAction;
 class UKilnseedAbilitySystemComponent;
 class UGameplayAbility;
+class UGameplayEffect;
 struct FInputActionValue;
 struct FOnAttributeChangeData;
 

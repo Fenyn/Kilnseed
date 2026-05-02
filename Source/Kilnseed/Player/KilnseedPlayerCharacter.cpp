@@ -156,11 +156,32 @@ void AKilnseedPlayerCharacter::HandleJump()
 void AKilnseedPlayerCharacter::HandleSprintStart()
 {
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * SprintMultiplier;
+
+	if (SprintDrainEffect)
+	{
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		{
+			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(SprintDrainEffect, 1.0f, ASC->MakeEffectContext());
+			if (Spec.IsValid())
+			{
+				ActiveSprintDrainHandle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+			}
+		}
+	}
 }
 
 void AKilnseedPlayerCharacter::HandleSprintStop()
 {
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+
+	if (ActiveSprintDrainHandle.IsValid())
+	{
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		{
+			ASC->RemoveActiveGameplayEffect(ActiveSprintDrainHandle);
+		}
+		ActiveSprintDrainHandle.Invalidate();
+	}
 }
 
 void AKilnseedPlayerCharacter::HandleInteract()

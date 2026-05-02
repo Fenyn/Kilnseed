@@ -3,6 +3,8 @@
 #include "Multiplayer/KilnseedGameState.h"
 #include "Player/KilnseedPlayerCharacter.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
+#include "GAS/KilnseedPlayerAttributeSet.h"
+#include "GameplayEffect.h"
 #include "GameFramework/PlayerController.h"
 
 AKilnseedGameMode::AKilnseedGameMode()
@@ -46,6 +48,16 @@ void AKilnseedGameMode::HandlePlayerDeath(APlayerController* DeadPlayer)
 {
 	if (!DeadPlayer) return;
 
+	// Clear all active GEs on the player's ASC before destroying the pawn,
+	// so SafeZoneVolume overlap-end doesn't apply stale effects
+	if (AKilnseedPlayerState* PS = DeadPlayer->GetPlayerState<AKilnseedPlayerState>())
+	{
+		if (UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent())
+		{
+			ASC->RemoveActiveEffects(FGameplayEffectQuery());
+		}
+	}
+
 	if (APawn* Pawn = DeadPlayer->GetPawn())
 	{
 		Pawn->Destroy();
@@ -62,6 +74,16 @@ void AKilnseedGameMode::HandlePlayerDeath(APlayerController* DeadPlayer)
 void AKilnseedGameMode::RespawnPlayer(APlayerController* PlayerController)
 {
 	if (!PlayerController) return;
+
+	// Reset O2 to full before spawning so the player starts fresh
+	if (AKilnseedPlayerState* PS = PlayerController->GetPlayerState<AKilnseedPlayerState>())
+	{
+		if (UKilnseedPlayerAttributeSet* Attrs = PS->GetPlayerAttributes())
+		{
+			Attrs->InitO2Level(1.0f);
+		}
+	}
+
 	RestartPlayer(PlayerController);
 	GrantDefaultAbilities(PlayerController);
 }
