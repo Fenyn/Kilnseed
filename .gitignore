@@ -1,0 +1,24 @@
+# Compiled binaries and intermediates
+Binaries/
+Intermediate/
+DerivedDataCache/
+
+# Editor and IDE generated
+.vs/
+.vscode/
+.idea/
+.vsconfig
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+UpgradeLog.htm
+
+# Saved data (local user state, autosaves, logs, crashes)
+Saved/
+
+# OS junk
+Thumbs.db
+.DS_Store
