@@ -32,10 +32,11 @@ public:
 
 	int32 GetScaledQuota(int32 BaseQuota);
 
-	UFUNCTION()
 	void HandlePlayerDeath(APlayerController* DeadPlayer);
 
 private:
 	void GrantDefaultAbilities(APlayerController* PlayerController);
 	void RespawnPlayer(APlayerController* PlayerController);
+
+	TMap<APlayerController*, FTimerHandle> RespawnTimers;
 };

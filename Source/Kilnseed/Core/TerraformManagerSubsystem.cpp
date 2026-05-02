@@ -47,6 +47,8 @@ float UTerraformManagerSubsystem::GetAxisPercent(FName Axis)
 	AKilnseedGameMode* GM = Cast<AKilnseedGameMode>(GetWorld()->GetAuthGameMode());
 	if (!GS || !GM) return 0.0f;
 
+	if (GM->GetNumPlayers() <= 0) return 0.0f;
+
 	if (Axis == FName("atmosphere"))
 	{
 		return FMath::Clamp(static_cast<float>(GS->AtmosphereDelivered) / GM->GetScaledQuota(GM->BaseAerolumQuota), 0.0f, 1.0f);

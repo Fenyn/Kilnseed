@@ -1,0 +1,452 @@
+# Kilnseed P1 — Editor Setup Guide
+
+All C++ is in place. This guide covers everything you need to create in-editor to get the game running: walking around, O2 draining outside the safe zone, dying and respawning.
+
+---
+
+## 1. Enhanced Input Assets
+
+Create all assets in `Content/Kilnseed/Input/`.
+
+### 1a. Input Actions (7 assets)
+
+Right-click in Content Browser > Input > Input Action for each:
+
+| Asset Name | Value Type | Notes |
+|------------|-----------|-------|
+| `IA_Move` | Axis2D (Vector2D) | WASD movement |
+| `IA_Look` | Axis2D (Vector2D) | Mouse look |
+| `IA_Jump` | Digital (Bool) | Space bar |
+| `IA_Sprint` | Digital (Bool) | Shift (hold) |
+| `IA_Interact` | Digital (Bool) | E key |
+| `IA_PrimaryAction` | Digital (Bool) | Left mouse button |
+| `IA_BuildMenu` | Digital (Bool) | B key |
+
+For each: double-click to open, set the Value Type, save.
+
+### 1b. Input Mapping Context (1 asset)
+
+Right-click > Input > Input Mapping Context. Name it `IMC_Default`.
+
+Double-click to open and add these mappings:
+
+**IA_Move:**
+- W → Modifiers: Swizzle Input Axis Values (YXZ), then this gives forward
+- S → Modifiers: Swizzle Input Axis Values (YXZ), Negate
+- D → (no modifiers needed, gives positive X)
+- A → Modifiers: Negate
+
+**IA_Look:**
+- Mouse XY 2D-Axis → Modifiers: Negate (Y axis only, so pitch isn't inverted — add a "Negate" modifier and set Y to true, X to false)
+
+**IA_Jump:**
+- Space Bar → (no modifiers)
+
+**IA_Sprint:**
+- Left Shift → (no modifiers)
+
+**IA_Interact:**
+- E → (no modifiers)
+
+**IA_PrimaryAction:**
+- Left Mouse Button → (no modifiers)
+
+**IA_BuildMenu:**
+- B → (no modifiers)
+
+Save.
+
+---
+
+## 2. Gameplay Effects
+
+Create assets in `Content/Kilnseed/Data/Effects/`.
+
+### 2a. GE_O2Drain
+
+Right-click > Blueprint Class > search "GameplayEffect" > select GameplayEffect > name it `GE_O2Drain`.
+
+Double-click to open. Set:
+
+- **Duration Policy:** Infinite
+- **Period:** 0.25
+
+Under **Modifiers**, click + to add one:
+- **Attribute:** KilnseedPlayerAttributeSet.O2Level
+- **Modifier Op:** Add
+- **Modifier Magnitude > Magnitude Calculation Type:** Attribute Based
+- **Backing Attribute > Attribute to Capture:** KilnseedPlayerAttributeSet.O2DrainRate
+- **Attribute Source:** Source
+- **Coefficient:** -1.0
+
+The drain rate is computed in C++ from O2MaxDuration (default 60s). Coefficient -1 makes it subtract.
+
+Save.
+
+### 2b. GE_O2Refill
+
+Same process. Name it `GE_O2Refill`.
+
+- **Duration Policy:** Infinite
+- **Period:** 0.25
+
+**Modifier:**
+- **Attribute:** KilnseedPlayerAttributeSet.O2Level
+- **Modifier Op:** Add
+- **Magnitude Calculation Type:** Attribute Based
+- **Backing Attribute > Attribute to Capture:** KilnseedPlayerAttributeSet.O2DrainRate
+- **Attribute Source:** Source
+- **Coefficient:** 3.0 (refills 3x faster than drain)
+
+Save.
+
+---
+
+## 3. BP_SafeZone
+
+Create in `Content/Kilnseed/Blueprints/Stations/`.
+
+Right-click > Blueprint Class > All Classes > search `SafeZoneVolume` > select it > name `BP_SafeZone`.
+
+Double-click to open. In the Details panel (Class Defaults):
+- **O2 Drain Effect:** GE_O2Drain
+- **O2 Refill Effect:** GE_O2Refill
+
+Save. The volume size (800x800x600 units) is already set in C++.
+
+---
+
+## 4. BP_KilnseedPlayer
+
+Create in `Content/Kilnseed/Blueprints/Player/`.
+
+Right-click > Blueprint Class > All Classes > search `KilnseedPlayerCharacter` > select it > name `BP_KilnseedPlayer`.
+
+Double-click to open. In Class Defaults, assign:
+
+**Input section:**
+- Default Mapping Context: `IMC_Default`
+- IA_Move: `IA_Move`
+- IA_Look: `IA_Look`
+- IA_Jump: `IA_Jump`
+- IA_Sprint: `IA_Sprint`
+- IA_Interact: `IA_Interact`
+- IA_PrimaryAction: `IA_PrimaryAction`
+- IA_BuildMenu: `IA_BuildMenu`
+
+**Abilities section:**
+- Interact Ability Class: `GA_Interact` (C++ class, should appear in dropdown)
+
+Save.
+
+---
+
+## 5. BP_KilnseedGameMode
+
+Create in `Content/Kilnseed/Blueprints/`.
+
+Right-click > Blueprint Class > All Classes > search `KilnseedGameMode` > select it > name `BP_KilnseedGameMode`.
+
+Double-click to open. In Class Defaults:
+- **Default Pawn Class:** `BP_KilnseedPlayer`
+- **Player State Class:** `KilnseedPlayerState` (C++ class)
+- **Game State Class:** `KilnseedGameState` (C++ class)
+- **Default Abilities:** Click + and add `GA_Interact`
+
+Save.
+
+---
+
+## 6. Create L_MainPlanet Level
+
+File > New Level > Empty Level. Save as `Content/Kilnseed/Maps/L_MainPlanet`.
+
+### 6a. Lighting & Sky
+
+1. **Directional Light** — Drag from Place Actors panel. Set:
+   - Rotation: (-40, -30, 0) for angled sunlight
+   - Intensity: 3.0
+   - Light Color: warm orange-ish (R:1.0, G:0.85, B:0.7)
+
+2. **Sky Atmosphere** — Place Actors > search "Sky Atmosphere" > drag into level. Defaults are fine for now (we'll make it Mars-like later by tweaking Rayleigh scattering).
+
+3. **Exponential Height Fog** — Place Actors > drag in. Set:
+   - Fog Density: 0.03
+   - Fog Inscattering Color: (R:0.6, G:0.3, B:0.2) — dusty red
+   - Fog Height Falloff: 0.5
+
+4. **SkyLight** — Place Actors > drag in. Set to "SLS Captured Scene" so it picks up the sky atmosphere.
+
+### 6b. Ground Plane
+
+For now, a simple floor to walk on:
+1. Place Actors > Basic > Cube
+2. Scale to (50, 50, 0.1) — this gives a 5000x5000cm flat surface
+3. Position at (0, 0, 0)
+4. Set material to default or a grey material
+
+(We'll replace this with a proper Landscape later.)
+
+### 6c. Safe Zone
+
+1. Drag `BP_SafeZone` from Content Browser into the level
+2. Position at (0, 0, 0) — center of the map
+3. The volume is already sized (800x800x600). Players inside won't drain O2.
+
+### 6d. Player Start
+
+1. Place Actors > Basic > Player Start
+2. Position at (0, 0, 100) — inside the safe zone so player spawns safe
+
+### 6e. Greybox Hub (optional but nice)
+
+1. Place Actors > Basic > Sphere
+2. Scale to (4, 4, 2) — hemisphere-ish shape
+3. Position at (0, 0, 0) — sits on the ground at center
+4. This visually marks the safe zone / habitat hub
+
+---
+
+## 7. Project Settings
+
+### 7a. Default Map & GameMode
+
+Edit > Project Settings > Maps & Modes:
+- **Default GameMode:** `BP_KilnseedGameMode`
+- **Editor Startup Map:** `L_MainPlanet`
+- **Game Default Map:** `L_MainPlanet`
+
+### 7b. Verify Enhanced Input
+
+Edit > Project Settings > Input:
+- **Default Player Input Class** should already be `EnhancedPlayerInput`
+- **Default Input Component Class** should already be `EnhancedInputComponent`
+
+(These were set when the project was created.)
+
+---
+
+## 8. Test It
+
+1. Press Play (PIE)
+2. You should spawn at the Player Start inside the safe zone
+3. WASD to move, mouse to look, space to jump, shift to sprint
+4. Walk outside the safe zone volume — O2 should start draining (check with `showdebug abilitysystem` in the console: tilde `~` key)
+5. Walk back inside — O2 should refill
+6. Stay outside until O2 hits 0 — you should die and respawn at hub after 3 seconds
+
+### Debug Tips
+- **Console:** `showdebug abilitysystem` — shows active GEs, attribute values, tags
+- **Console:** `show collision` — shows the safe zone volume boundaries
+- If O2 doesn't drain, check that BP_SafeZone has GE_O2Drain/Refill assigned
+- If movement doesn't work, check that BP_KilnseedPlayer has the IMC and IA_ assets assigned
+- If GA_Interact doesn't exist in dropdowns, rebuild the project first
+
+---
+
+## Summary of Assets Created
+
+```
+Content/Kilnseed/
+  Input/
+    IA_Move, IA_Look, IA_Jump, IA_Sprint,
+    IA_Interact, IA_PrimaryAction, IA_BuildMenu
+    IMC_Default
+  Data/Effects/
+    GE_O2Drain, GE_O2Refill
+  Blueprints/
+    BP_KilnseedGameMode
+    Player/BP_KilnseedPlayer
+    Stations/BP_SafeZone
+  Maps/
+    L_MainPlanet
+```
+
+Total: 13 assets. ~20 minutes of editor work.
+
+---
+---
+
+# Kilnseed P2 — Editor Setup (Farming Loop)
+
+After P1 is working (walking + O2), add these for the plant/water/harvest loop.
+
+---
+
+## 1. Gameplay Effects for Plots
+
+Create in `Content/Kilnseed/Data/Effects/`.
+
+### 1a. GE_PlotGrowth
+
+Blueprint Class > GameplayEffect > name `GE_PlotGrowth`.
+
+- **Duration Policy:** Infinite
+- **Period:** 0.25
+
+**Modifier:**
+- **Attribute:** KilnseedPlotAttributeSet.GrowthProgress
+- **Modifier Op:** Add
+- **Magnitude Calculation Type:** Set By Caller
+- **Data Tag:** `Seed.Data.GrowthRate`
+
+The per-tick growth rate is computed in C++ from each plant's `GrowthSeconds` data asset field (Aerolume=25s, Loamspine=50s, Tidefern=100s).
+
+### 1b. GE_WaterDrain
+
+Blueprint Class > GameplayEffect > name `GE_WaterDrain`.
+
+- **Duration Policy:** Infinite
+- **Period:** 0.25
+
+**Modifier:**
+- **Attribute:** KilnseedPlotAttributeSet.WaterLevel
+- **Modifier Op:** Add
+- **Magnitude Calculation Type:** Set By Caller
+- **Data Tag:** `Seed.Data.WaterDrain`
+
+The per-tick drain is computed in C++ from each plant's `WaterDrainRate` data asset field.
+
+---
+
+## 2. Blueprint Stations
+
+Create all in `Content/Kilnseed/Blueprints/Stations/`.
+
+### 2a. BP_Plot
+
+Blueprint Class > PlotActor > name `BP_Plot`.
+
+In Class Defaults:
+- **Growth Effect:** GE_PlotGrowth
+- **Water Drain Effect:** GE_WaterDrain
+
+In the Components panel:
+- **Mesh** (inherited): Assign a basic Cube mesh, scale to (1.5, 1.5, 0.1) — flat plot tile
+- **PlantMesh** (inherited): Assign a basic Sphere mesh — this scales up as the plant grows
+
+Optionally set materials:
+- Mesh: dark grey for soil
+- PlantMesh: lime green emissive (for Aerolume default)
+
+### 2b. BP_SeedDispenser
+
+Blueprint Class > SeedDispenserActor > name `BP_SeedDispenser`.
+
+In Class Defaults:
+- **Seed Pod Class:** Set to the carriable class (ACarriableBase or a BP subclass — see 2d)
+- **Available Plants:** Add entries for each plant DA asset (see step 3)
+- **Dispense Cooldown:** 5.0
+- **Power Draw:** 3.0
+
+Components:
+- **Mesh**: Assign a Cylinder mesh, scale to taste
+
+### 2c. BP_WaterReservoir
+
+Blueprint Class > WaterReservoirActor > name `BP_WaterReservoir`.
+
+Components:
+- **Mesh**: Assign a Cylinder mesh (larger, blue-tinted)
+
+### 2d. BP_SeedPod, BP_WaterCanister, BP_HarvestCrate (optional)
+
+For distinct visual items, create Blueprint subclasses of `CarriableBase`:
+- **BP_SeedPod**: Sphere mesh, small (Scale 0.15), emissive material
+- **BP_WaterCanister**: Cylinder mesh, small, blue material
+- **BP_HarvestCrate**: Cube mesh, small (Scale 0.25), emissive material
+
+Or just use the base CarriableBase — it works, just looks like a default mesh.
+
+---
+
+## 3. Plant Data Assets
+
+Create in `Content/Kilnseed/Data/Plants/`.
+
+Right-click > Miscellaneous > Data Asset > pick `PlantDataAsset` for each:
+
+### DA_Aerolume
+- Plant Id: `aerolume`
+- Display Name: `Aerolume`
+- Plant Color: (0.5, 0.9, 0.2, 1) — Lime Green
+- Growth Seconds: 25
+- Water Drain Rate: 0.033
+- Pollination Window: 15
+- Terraform Axis: (leave blank for now, used in P3)
+- Seed Dispense Cooldown: 5
+- Plant Tag: `Seed.Plant.Aerolume`
+
+### DA_Loamspine
+- Plant Id: `loamspine`
+- Display Name: `Loamspine`
+- Plant Color: (0.9, 0.6, 0.2, 1) — Amber
+- Growth Seconds: 50
+- Water Drain Rate: 0.033
+- Pollination Window: 15
+- Plant Tag: `Seed.Plant.Loamspine`
+
+### DA_Tidefern
+- Plant Id: `tidefern`
+- Display Name: `Tidefern`
+- Plant Color: (0.2, 0.8, 0.6, 1) — Teal
+- Growth Seconds: 100
+- Water Drain Rate: 0.033
+- Pollination Window: 15
+- Plant Tag: `Seed.Plant.Tidefern`
+
+---
+
+## 4. Update BP_KilnseedGameMode
+
+Open `BP_KilnseedGameMode` and add to **Default Abilities:**
+- GA_Interact (already there from P1)
+- GA_Pickup
+- GA_Place
+
+---
+
+## 5. Update BP_KilnseedPlayer
+
+Open `BP_KilnseedPlayer` and set:
+- **Pickup Ability Class:** GA_Pickup
+- **Place Ability Class:** GA_Place
+
+---
+
+## 6. Place in Level
+
+Open `L_MainPlanet` and add:
+
+1. **3×3 Plot Grid**: Drag 9x `BP_Plot` into the level. Space them ~200 units apart in a 3×3 grid, offset ~800 units from center (south of hub).
+
+2. **Seed Dispenser**: Drag `BP_SeedDispenser` into the level. Place east of hub (~500 units). In its Details, add DA_Aerolume to the Available Plants array.
+
+3. **Water Reservoir**: Drag `BP_WaterReservoir` into the level. Place west of hub.
+
+---
+
+## 7. Test It
+
+1. Play in editor
+2. Walk to seed dispenser, press E → get a seed pod in hand
+3. Walk to an empty plot, left-click → plant the seed
+4. Watch the plant mesh scale up as GrowthProgress increases (check with `showdebug abilitysystem` on the plot)
+5. At 50% growth, plot enters POLLINATING state → press E to pollinate
+6. At 100%, plot enters BLOOMED → press E to harvest, get a crate
+7. Walk outside safe zone with the crate — O2 drains. Walk back in — O2 refills.
+
+---
+
+## P2 Assets Summary
+
+```
+Content/Kilnseed/
+  Data/
+    Effects/GE_PlotGrowth, GE_WaterDrain
+    Plants/DA_Aerolume, DA_Loamspine, DA_Tidefern
+  Blueprints/Stations/
+    BP_Plot, BP_SeedDispenser, BP_WaterReservoir
+```
+
+Total: 8 new assets. ~15 minutes of editor work.

@@ -3,6 +3,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "PlotManagerSubsystem.generated.h"
 
+class APlotActor;
+
 UCLASS()
 class KILNSEED_API UPlotManagerSubsystem : public UWorldSubsystem
 {
@@ -21,4 +23,7 @@ public:
 private:
 	UPROPERTY()
 	TArray<TObjectPtr<AActor>> RegisteredPlots;
+
+	UFUNCTION()
+	void OnTickFired(int32 TickNumber);
 };

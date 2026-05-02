@@ -6,7 +6,8 @@ UKilnseedPlayerAttributeSet::UKilnseedPlayerAttributeSet()
 {
 	InitO2Level(1.0f);
 	InitO2MaxDuration(60.0f);
-	InitO2DrainRate(1.0f / 60.0f);
+	// Per-tick drain amount: GE period (0.25s) / O2MaxDuration (60s)
+	InitO2DrainRate(0.25f / 60.0f);
 	InitMoveSpeed(450.0f);
 	InitInteractRange(250.0f);
 }

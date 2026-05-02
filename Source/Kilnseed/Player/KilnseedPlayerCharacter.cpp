@@ -2,11 +2,20 @@
 #include "Player/InteractionComponent.h"
 #include "Player/CarryComponent.h"
 #include "Multiplayer/KilnseedPlayerState.h"
+#include "Multiplayer/KilnseedGameMode.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
+#include "GAS/KilnseedPlayerAttributeSet.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "AbilitySystemComponent.h"
+
+static TAutoConsoleVariable<float> CVarLookSensitivity(
+	TEXT("Kilnseed.LookSensitivity"),
+	0.75f,
+	TEXT("Mouse look sensitivity multiplier"),
+	ECVF_SetByGameSetting);
 
 AKilnseedPlayerCharacter::AKilnseedPlayerCharacter()
 {
@@ -74,6 +83,25 @@ void AKilnseedPlayerCharacter::InitializeASC()
 	if (!ASC) return;
 
 	ASC->InitAbilityActorInfo(PS, this);
+
+	// Listen for O2 depletion
+	ASC->GetGameplayAttributeValueChangeDelegate(
+		UKilnseedPlayerAttributeSet::GetO2LevelAttribute()
+	).AddUObject(this, &AKilnseedPlayerCharacter::OnO2LevelChanged);
+}
+
+void AKilnseedPlayerCharacter::OnO2LevelChanged(const FOnAttributeChangeData& Data)
+{
+	if (Data.NewValue <= 0.0f && HasAuthority())
+	{
+		AKilnseedPlayerState* PS = GetPlayerState<AKilnseedPlayerState>();
+		if (PS) PS->Deaths++;
+
+		if (AKilnseedGameMode* GM = GetWorld()->GetAuthGameMode<AKilnseedGameMode>())
+		{
+			GM->HandlePlayerDeath(Cast<APlayerController>(GetController()));
+		}
+	}
 }
 
 void AKilnseedPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -115,8 +143,9 @@ void AKilnseedPlayerCharacter::HandleMove(const FInputActionValue& Value)
 void AKilnseedPlayerCharacter::HandleLook(const FInputActionValue& Value)
 {
 	const FVector2D LookInput = Value.Get<FVector2D>();
-	AddControllerYawInput(LookInput.X * LookSensitivity);
-	AddControllerPitchInput(LookInput.Y * LookSensitivity);
+	const float Sensitivity = CVarLookSensitivity.GetValueOnGameThread();
+	AddControllerYawInput(LookInput.X * Sensitivity);
+	AddControllerPitchInput(LookInput.Y * Sensitivity);
 }
 
 void AKilnseedPlayerCharacter::HandleJump()
@@ -136,12 +165,30 @@ void AKilnseedPlayerCharacter::HandleSprintStop()
 
 void AKilnseedPlayerCharacter::HandleInteract()
 {
-	// Will activate GA_Interact via ASC in P1
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		if (InteractAbilityClass)
+		{
+			ASC->TryActivateAbilityByClass(InteractAbilityClass);
+		}
+	}
 }
 
 void AKilnseedPlayerCharacter::HandlePrimaryAction()
 {
-	// Will activate GA_Pickup or GA_Place via ASC in P2
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC) return;
+
+	if (CarryComponent->IsCarrying())
+	{
+		if (PlaceAbilityClass)
+			ASC->TryActivateAbilityByClass(PlaceAbilityClass);
+	}
+	else
+	{
+		if (PickupAbilityClass)
+			ASC->TryActivateAbilityByClass(PickupAbilityClass);
+	}
 }
 
 void AKilnseedPlayerCharacter::HandleBuildMenu()

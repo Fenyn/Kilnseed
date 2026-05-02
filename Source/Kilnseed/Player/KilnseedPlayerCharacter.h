@@ -2,6 +2,7 @@
 
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "ActiveGameplayEffectHandle.h"
 #include "KilnseedPlayerCharacter.generated.h"
 
 class UCameraComponent;
@@ -10,7 +11,9 @@ class UCarryComponent;
 class UInputMappingContext;
 class UInputAction;
 class UKilnseedAbilitySystemComponent;
+class UGameplayAbility;
 struct FInputActionValue;
+struct FOnAttributeChangeData;
 
 UCLASS()
 class KILNSEED_API AKilnseedPlayerCharacter : public ACharacter, public IAbilitySystemInterface
@@ -67,11 +70,23 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float SprintMultiplier = 1.5f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Camera")
-	float LookSensitivity = 0.2f;
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	TSubclassOf<UGameplayEffect> SprintDrainEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+	TSubclassOf<UGameplayAbility> InteractAbilityClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+	TSubclassOf<UGameplayAbility> PickupAbilityClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+	TSubclassOf<UGameplayAbility> PlaceAbilityClass;
 
 private:
 	void InitializeASC();
+	void OnO2LevelChanged(const FOnAttributeChangeData& Data);
+
+	FActiveGameplayEffectHandle ActiveSprintDrainHandle;
 
 	void HandleMove(const FInputActionValue& Value);
 	void HandleLook(const FInputActionValue& Value);

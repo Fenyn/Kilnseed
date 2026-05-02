@@ -2,13 +2,8 @@
 
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
+#include "GAS/KilnseedAttributeMacros.h"
 #include "KilnseedPlayerAttributeSet.generated.h"
-
-#define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
-	GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
-	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
 UCLASS()
 class KILNSEED_API UKilnseedPlayerAttributeSet : public UAttributeSet

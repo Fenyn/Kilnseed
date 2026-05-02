@@ -16,6 +16,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Milestones")
 	void CheckMilestones();
 
-	UPROPERTY(EditDefaultsOnly, Category = "Milestones")
+	UFUNCTION(BlueprintCallable, Category = "Milestones")
+	void RegisterMilestone(UMilestoneDataAsset* Milestone);
+
+private:
+	UPROPERTY()
 	TArray<TObjectPtr<UMilestoneDataAsset>> MilestoneAssets;
+
+	UFUNCTION()
+	void OnDeliveryReceived(FName PlantType);
+
+	bool EvaluateCondition(const UMilestoneDataAsset* Milestone) const;
+	void DispatchReward(const UMilestoneDataAsset* Milestone);
 };

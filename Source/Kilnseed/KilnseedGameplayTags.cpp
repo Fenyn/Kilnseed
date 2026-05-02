@@ -52,6 +52,9 @@ namespace KilnseedTags
 	UE_DEFINE_GAMEPLAY_TAG(SmartObject_WaterSource,      "Seed.SmartObject.WaterSource");
 	UE_DEFINE_GAMEPLAY_TAG(SmartObject_DeliveryTarget,   "Seed.SmartObject.DeliveryTarget");
 
+	UE_DEFINE_GAMEPLAY_TAG(Data_GrowthRate,   "Seed.Data.GrowthRate");
+	UE_DEFINE_GAMEPLAY_TAG(Data_WaterDrain,   "Seed.Data.WaterDrain");
+
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Harvest,   "GameplayCue.Seed.Harvest");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Deliver,   "GameplayCue.Seed.Deliver");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Milestone, "GameplayCue.Seed.Milestone");

@@ -62,6 +62,11 @@ void UCarryComponent::ServerDrop_Implementation()
 	DropItem();
 }
 
+void UCarryComponent::ClearHeldReference()
+{
+	HeldItem = nullptr;
+}
+
 void UCarryComponent::OnRep_HeldItem()
 {
 	if (HeldItem)

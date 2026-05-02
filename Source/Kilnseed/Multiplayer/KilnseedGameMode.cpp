@@ -51,12 +51,10 @@ void AKilnseedGameMode::HandlePlayerDeath(APlayerController* DeadPlayer)
 		Pawn->Destroy();
 	}
 
-	FTimerHandle RespawnTimer;
-	FTimerDelegate RespawnDelegate;
-	RespawnDelegate.BindUFunction(this, FName("RespawnPlayer"), DeadPlayer);
-
-	GetWorldTimerManager().SetTimer(RespawnTimer, [this, DeadPlayer]()
+	FTimerHandle& Timer = RespawnTimers.FindOrAdd(DeadPlayer);
+	GetWorldTimerManager().SetTimer(Timer, [this, DeadPlayer]()
 	{
+		RespawnTimers.Remove(DeadPlayer);
 		RespawnPlayer(DeadPlayer);
 	}, RespawnDelay, false);
 }

@@ -1,5 +1,8 @@
 #include "Core/PowerManagerSubsystem.h"
 #include "Core/EventBusSubsystem.h"
+#include "Multiplayer/KilnseedGameState.h"
+#include "GAS/KilnseedAbilitySystemComponent.h"
+#include "GAS/KilnseedWorldAttributeSet.h"
 
 void UPowerManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -59,6 +62,18 @@ void UPowerManagerSubsystem::UpdateBrownoutState()
 					EventBus->OnBrownoutEnded.Broadcast();
 
 				EventBus->OnPowerChanged.Broadcast(TotalSupply, GetTotalDemand());
+			}
+		}
+
+		if (AKilnseedGameState* GS = GetWorld()->GetGameState<AKilnseedGameState>())
+		{
+			if (UKilnseedAbilitySystemComponent* ASC = GS->GetKilnseedASC())
+			{
+				if (const UKilnseedWorldAttributeSet* Attrs = ASC->GetSet<UKilnseedWorldAttributeSet>())
+				{
+					const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerSupply(TotalSupply);
+					const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerDemand(GetTotalDemand());
+				}
 			}
 		}
 	}

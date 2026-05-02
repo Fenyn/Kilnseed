@@ -25,6 +25,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Carry")
 	ACarriableBase* DropItem();
 
+	UFUNCTION(BlueprintCallable, Category = "Carry")
+	void ClearHeldReference();
+
 	UFUNCTION(Server, Reliable)
 	void ServerPickup(ACarriableBase* Item);
 
