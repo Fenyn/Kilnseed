@@ -5,9 +5,43 @@
 #include "Multiplayer/KilnseedGameState.h"
 #include "Multiplayer/KilnseedGameMode.h"
 
+static UMilestoneDataAsset* CreateMilestone(UObject* Outer, FName Id, FText Name,
+	FName Axis, int32 Count, EMilestoneRewardType Reward, FName Target = NAME_None)
+{
+	UMilestoneDataAsset* DA = NewObject<UMilestoneDataAsset>(Outer);
+	DA->MilestoneId = Id;
+	DA->DisplayName = Name;
+	DA->ConditionType = EMilestoneConditionType::DeliveryCount;
+	DA->ConditionAxis = Axis;
+	DA->ConditionValue = Count;
+	DA->RewardType = Reward;
+	DA->RewardTarget = Target;
+	return DA;
+}
+
 void UMilestoneManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	// Atmosphere milestones (aerolume deliveries)
+	RegisterMilestone(CreateMilestone(this, "atmo25", FText::FromString("Atmo 25%"),
+		"atmosphere", 2, EMilestoneRewardType::UnlockPlant, "loamspine"));
+	RegisterMilestone(CreateMilestone(this, "atmo50", FText::FromString("Atmo 50%"),
+		"atmosphere", 4, EMilestoneRewardType::UnlockPlant, "tidefern"));
+	RegisterMilestone(CreateMilestone(this, "atmo100", FText::FromString("Atmo 100%"),
+		"atmosphere", 7, EMilestoneRewardType::RetireO2));
+
+	// Soil milestones (loamspine deliveries)
+	RegisterMilestone(CreateMilestone(this, "soil33", FText::FromString("Soil 33%"),
+		"soil", 1, EMilestoneRewardType::WorldTransform));
+	RegisterMilestone(CreateMilestone(this, "soil100", FText::FromString("Soil 100%"),
+		"soil", 4, EMilestoneRewardType::WorldTransform));
+
+	// Hydro milestones (tidefern deliveries)
+	RegisterMilestone(CreateMilestone(this, "hydro33", FText::FromString("Hydro 33%"),
+		"hydrosphere", 1, EMilestoneRewardType::WorldTransform));
+	RegisterMilestone(CreateMilestone(this, "hydro100", FText::FromString("Hydro 100%"),
+		"hydrosphere", 2, EMilestoneRewardType::Win));
 
 	if (UGameInstance* GI = GetWorld()->GetGameInstance())
 	{

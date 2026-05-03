@@ -32,5 +32,25 @@ private:
 	UPROPERTY()
 	TObjectPtr<AActor> SunActor;
 
+	UPROPERTY()
+	TObjectPtr<class AExponentialHeightFog> FogActor;
+
+	UPROPERTY()
+	TObjectPtr<class ASkyAtmosphere> SkyActor;
+
+	UPROPERTY()
+	TObjectPtr<class ASkyLight> SkyLightActor;
+
 	float CycleTimer = 0.0f;
+	float LastAtmoProgress = -1.0f;
+	float CurrentVisualAtmo = 0.0f;
+
+	float InitialSunIntensity;
+	FLinearColor InitialSunColor;
+	float InitialFogDensity;
+	FLinearColor InitialFogColor;
+	float InitialSkyLightIntensity;
+
+	void CaptureInitialValues();
+	void UpdateAtmosphereVisuals();
 };

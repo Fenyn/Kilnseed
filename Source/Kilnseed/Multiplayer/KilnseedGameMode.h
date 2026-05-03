@@ -16,13 +16,13 @@ public:
 	void PostLogin(APlayerController* NewPlayer) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseAerolumQuota = 12;
+	int32 BaseAerolumQuota = 7;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseLoamspineQuota = 6;
+	int32 BaseLoamspineQuota = 4;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseTidefernQuota = 3;
+	int32 BaseTidefernQuota = 2;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> DefaultAbilities;

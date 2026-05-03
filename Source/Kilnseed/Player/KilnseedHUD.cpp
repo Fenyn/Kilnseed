@@ -7,8 +7,23 @@
 #include "AbilitySystemInterface.h"
 #include "GAS/KilnseedPlayerAttributeSet.h"
 #include "Core/TerraformManagerSubsystem.h"
+#include "Core/EventBusSubsystem.h"
 #include "KilnseedGameplayTags.h"
 #include "Engine/Canvas.h"
+
+void AKilnseedHUD::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UEventBusSubsystem* EB = GI->GetSubsystem<UEventBusSubsystem>())
+		{
+			EB->OnMilestoneReached.AddDynamic(this, &AKilnseedHUD::OnMilestoneReached);
+			EB->OnPlantUnlocked.AddDynamic(this, &AKilnseedHUD::OnPlantUnlocked);
+		}
+	}
+}
 
 void AKilnseedHUD::DrawHUD()
 {
@@ -57,6 +72,7 @@ void AKilnseedHUD::DrawHUD()
 	DrawCrosshair();
 	DrawInteractPrompt();
 	DrawNotification();
+	DrawMilestoneToast();
 	DrawStateIndicators(ASC);
 }
 
@@ -248,6 +264,48 @@ void AKilnseedHUD::DrawNotification()
 
 	DrawText(NotificationText, FLinearColor(1.0f, 1.0f, 1.0f, Alpha),
 		CX - TextW * 0.5f, Y, nullptr, 1.0f, false);
+}
+
+void AKilnseedHUD::ShowMilestone(const FString& Message)
+{
+	MilestoneText = Message;
+	MilestoneTimer = 5.0f;
+}
+
+void AKilnseedHUD::OnMilestoneReached(FName MilestoneId)
+{
+	FString Name = MilestoneId.ToString();
+	Name[0] = FChar::ToUpper(Name[0]);
+	ShowMilestone(FString::Printf(TEXT("MILESTONE: %s"), *Name));
+}
+
+void AKilnseedHUD::OnPlantUnlocked(FName PlantId)
+{
+	FString Name = PlantId.ToString();
+	Name[0] = FChar::ToUpper(Name[0]);
+	ShowMilestone(FString::Printf(TEXT("UNLOCKED: %s"), *Name));
+}
+
+void AKilnseedHUD::DrawMilestoneToast()
+{
+	if (MilestoneTimer <= 0.0f) return;
+
+	MilestoneTimer -= GetWorld()->GetDeltaSeconds();
+	float Alpha = FMath::Clamp(MilestoneTimer / 1.0f, 0.0f, 1.0f);
+
+	const float CX = Canvas->SizeX * 0.5f;
+	const float Y = Canvas->SizeY * 0.3f;
+
+	float TextW, TextH;
+	GetTextSize(MilestoneText, TextW, TextH, nullptr, 1.8f);
+
+	DrawRect(FLinearColor(0.05f, 0.02f, 0.0f, 0.8f * Alpha),
+		CX - TextW * 0.5f - 20.0f, Y - 10.0f,
+		TextW + 40.0f, TextH + 20.0f);
+
+	FLinearColor Gold(1.0f, 0.85f, 0.3f, Alpha);
+	DrawText(MilestoneText, Gold,
+		CX - TextW * 0.5f, Y, nullptr, 1.8f, false);
 }
 
 void AKilnseedHUD::DrawStateIndicators(UAbilitySystemComponent* ASC)
