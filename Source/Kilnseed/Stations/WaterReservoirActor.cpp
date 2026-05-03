@@ -1,17 +1,37 @@
 #include "Stations/WaterReservoirActor.h"
 #include "Items/CarriableBase.h"
 #include "Player/KilnseedPlayerCharacter.h"
+#include "Player/CarryComponent.h"
 #include "Core/PowerManagerSubsystem.h"
 #include "KilnseedGameplayTags.h"
+#include "Components/StaticMeshComponent.h"
 
 AWaterReservoirActor::AWaterReservoirActor()
 {
 	StationName = FText::FromString(TEXT("Water Reservoir"));
+
+	DisplayMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DisplayMesh"));
+	DisplayMesh->SetupAttachment(MeshComponent);
+	DisplayMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 80.0f));
+	DisplayMesh->SetWorldScale3D(FVector(0.12f, 0.12f, 0.18f));
+	DisplayMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	if (CylinderMesh.Succeeded())
+	{
+		DisplayMesh->SetStaticMesh(CylinderMesh.Object);
+	}
 }
 
 void AWaterReservoirActor::BeginPlay()
 {
 	Super::BeginPlay();
+
+	FLinearColor WaterBlue(0.3f, 0.5f, 0.9f);
+	if (UMaterialInstanceDynamic* MID = ACarriableBase::CreateColoredMaterial(this, WaterBlue))
+	{
+		DisplayMesh->SetMaterial(0, MID);
+	}
 
 	if (HasAuthority())
 	{
@@ -35,20 +55,44 @@ void AWaterReservoirActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void AWaterReservoirActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)
+{
+	if (!HasAuthority() || !Player) return;
+	if (Player->CarryComponent->IsCarrying()) return;
+
+	DispenseWater(Player);
+}
+
+void AWaterReservoirActor::DispenseWater(AKilnseedPlayerCharacter* Player)
+{
+	TSubclassOf<ACarriableBase> CanisterClass = WaterCanisterClass ? WaterCanisterClass : TSubclassOf<ACarriableBase>(ACarriableBase::StaticClass());
+
+	FVector SpawnLoc = GetActorLocation() + FVector(0, 0, 100);
+	ACarriableBase* Canister = GetWorld()->SpawnActor<ACarriableBase>(CanisterClass, SpawnLoc, FRotator::ZeroRotator);
+	if (Canister)
+	{
+		FLinearColor WaterBlue(0.3f, 0.5f, 0.9f);
+		Canister->ItemType = KilnseedTags::Item_WaterCanister;
+		Canister->ItemColor = WaterBlue;
+		Canister->SetItemColor(WaterBlue);
+		Player->CarryComponent->PickupItem(Canister);
+	}
+}
+
 bool AWaterReservoirActor::CanReceiveItem_Implementation(ACarriableBase* Item) const
 {
-	// Accepts water canisters (items without a plant tag — we'll refine this later)
-	return Item != nullptr;
+	return false;
 }
 
 bool AWaterReservoirActor::ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player)
 {
-	// For now, filling a canister just means the player picks it back up "full"
-	// The actual water canister fill mechanic will be refined when we have distinct item types
 	return false;
 }
 
 FText AWaterReservoirActor::GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const
 {
-	return FText::FromString(TEXT("[E] Water Reservoir"));
+	if (Player && Player->CarryComponent->IsCarrying())
+		return FText::FromString(TEXT("Water Reservoir"));
+
+	return FText::FromString(TEXT("[E] Fill Water Canister"));
 }

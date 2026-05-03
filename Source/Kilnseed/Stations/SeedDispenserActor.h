@@ -14,6 +14,9 @@ class KILNSEED_API ASeedDispenserActor : public AStationBase
 public:
 	ASeedDispenserActor();
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dispenser")
+	TObjectPtr<UStaticMeshComponent> DisplayMesh;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Dispenser")
 	TArray<TObjectPtr<UPlantDataAsset>> AvailablePlants;
 
@@ -29,6 +32,9 @@ public:
 	void Interact_Implementation(AKilnseedPlayerCharacter* Player) override;
 	FText GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const override;
 
+	void DispenseSeed(AKilnseedPlayerCharacter* Player);
+	void CyclePlant();
+
 protected:
 	void BeginPlay() override;
 	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -36,11 +42,7 @@ protected:
 private:
 	UPROPERTY(Replicated)
 	int32 CurrentPlantIndex = 0;
-
-	float LastDispenseTime = -100.0f;
-
-	void CyclePlant();
-	void DispenseSeed(AKilnseedPlayerCharacter* Player);
+	void UpdateDisplayColor();
 
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

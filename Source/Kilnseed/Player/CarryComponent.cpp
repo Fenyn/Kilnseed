@@ -22,8 +22,8 @@ bool UCarryComponent::PickupItem(ACarriableBase* Item)
 	if (GetOwner()->HasAuthority())
 	{
 		HeldItem = Item;
-		Item->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Item->SetCarried(true);
+		Item->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		return true;
 	}
 	else
@@ -71,7 +71,7 @@ void UCarryComponent::OnRep_HeldItem()
 {
 	if (HeldItem)
 	{
-		HeldItem->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		HeldItem->SetCarried(true);
+		HeldItem->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 	}
 }

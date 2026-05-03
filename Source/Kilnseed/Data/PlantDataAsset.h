@@ -20,7 +20,7 @@ public:
 	FLinearColor PlantColor = FLinearColor(0.5f, 0.9f, 0.2f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Plant")
-	float GrowthSeconds = 25.0f;
+	float GrowthDayCycles = 0.5f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Plant")
 	float WaterDrainRate = 0.033f;

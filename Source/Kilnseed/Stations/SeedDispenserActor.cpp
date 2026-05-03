@@ -11,11 +11,25 @@
 ASeedDispenserActor::ASeedDispenserActor()
 {
 	StationName = FText::FromString(TEXT("Seed Dispenser"));
+
+	DisplayMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DisplayMesh"));
+	DisplayMesh->SetupAttachment(MeshComponent);
+	DisplayMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 80.0f));
+	DisplayMesh->SetWorldScale3D(FVector(0.15f));
+	DisplayMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (SphereMesh.Succeeded())
+	{
+		DisplayMesh->SetStaticMesh(SphereMesh.Object);
+	}
 }
 
 void ASeedDispenserActor::BeginPlay()
 {
 	Super::BeginPlay();
+
+	UpdateDisplayColor();
 
 	if (HasAuthority())
 	{
@@ -48,33 +62,23 @@ void ASeedDispenserActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 void ASeedDispenserActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)
 {
 	if (!HasAuthority() || !Player) return;
+
 	if (Player->CarryComponent->IsCarrying()) return;
 
-	float Now = GetWorld()->GetTimeSeconds();
-	if (Now - LastDispenseTime >= DispenseCooldown)
-	{
-		DispenseSeed(Player);
-		LastDispenseTime = Now;
-	}
-	else
-	{
-		CyclePlant();
-	}
+	DispenseSeed(Player);
 }
 
 FText ASeedDispenserActor::GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const
 {
-	if (Player && Player->CarryComponent->IsCarrying())
-	{
-		return FText::FromString(TEXT("[E] Cycle Plant"));
-	}
+	if (!AvailablePlants.IsValidIndex(CurrentPlantIndex) || !AvailablePlants[CurrentPlantIndex])
+		return FText::FromString(TEXT("[E] Seed Dispenser"));
 
-	if (AvailablePlants.IsValidIndex(CurrentPlantIndex) && AvailablePlants[CurrentPlantIndex])
-	{
-		return FText::Format(INVTEXT("[E] Dispense {0}"), AvailablePlants[CurrentPlantIndex]->DisplayName);
-	}
+	FText PlantName = AvailablePlants[CurrentPlantIndex]->DisplayName;
 
-	return FText::FromString(TEXT("[E] Seed Dispenser"));
+	if (Player && !Player->CarryComponent->IsCarrying())
+		return FText::Format(INVTEXT("[E] Take {0} | [LMB] Cycle"), PlantName);
+
+	return FText::Format(INVTEXT("[LMB] Cycle ({0})"), PlantName);
 }
 
 void ASeedDispenserActor::CyclePlant()
@@ -95,6 +99,8 @@ void ASeedDispenserActor::CyclePlant()
 			}
 		}
 	} while (CurrentPlantIndex != StartIndex);
+
+	UpdateDisplayColor();
 }
 
 void ASeedDispenserActor::DispenseSeed(AKilnseedPlayerCharacter* Player)
@@ -111,7 +117,22 @@ void ASeedDispenserActor::DispenseSeed(AKilnseedPlayerCharacter* Player)
 	ACarriableBase* Seed = GetWorld()->SpawnActor<ACarriableBase>(SeedPodClass, SpawnLoc, FRotator::ZeroRotator);
 	if (Seed)
 	{
+		Seed->ItemType = KilnseedTags::Item_Seed;
 		Seed->PlantType = Plant->PlantTag;
+		Seed->ItemColor = Plant->PlantColor;
+		Seed->PlantData = Plant;
+		Seed->SetItemColor(Plant->PlantColor);
 		Player->CarryComponent->PickupItem(Seed);
+	}
+}
+
+void ASeedDispenserActor::UpdateDisplayColor()
+{
+	if (!AvailablePlants.IsValidIndex(CurrentPlantIndex) || !AvailablePlants[CurrentPlantIndex])
+		return;
+
+	if (UMaterialInstanceDynamic* MID = ACarriableBase::CreateColoredMaterial(this, AvailablePlants[CurrentPlantIndex]->PlantColor))
+	{
+		DisplayMesh->SetMaterial(0, MID);
 	}
 }

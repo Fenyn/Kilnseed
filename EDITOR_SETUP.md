@@ -323,17 +323,31 @@ In Class Defaults:
 
 In the Components panel:
 - **Mesh** (inherited): Assign a basic Cube mesh, scale to (1.5, 1.5, 0.1) — flat plot tile
-- **PlantMesh** (inherited): Assign a basic Sphere mesh — this scales up as the plant grows
 
-Optionally set materials:
-- Mesh: dark grey for soil
-- PlantMesh: lime green emissive (for Aerolume default)
+Plant visuals are fully procedural — **do not add a plant mesh**. The `PlantVisualComponent` builds composite shapes at runtime from basic engine primitives (spheres, cubes, cones, cylinders) based on the plant type. Each plant type has a unique multi-part silhouette with staggered growth stages and per-part emissive color variation:
+- **Aerolume** (lime): Bioluminescent cluster — stem + central bulb + orbiting pods + bloom cap
+- **Loamspine** (amber): Crystal spire — central column + radiating spike cones + crown
+- **Tidefern** (teal): Aquatic mushroom — dual stems + broad flat cap + trailing tendrils + bud orbs
 
-### 2b. BP_SeedDispenser
+### 2b. BP_TerraformHub
 
+Blueprint Class > TerraformHubActor > name `BP_TerraformHub`.
+
+In the Components panel:
+- **Mesh** (inherited): Assign a Cube mesh, scale to (1.5, 1.5, 2.0) — tall box
+- **AtmoIntake** (inherited): Appears as a small box on the left — assign a Cube mesh. Set material to a lime-tinted color to indicate Atmosphere intake.
+- **SoilIntake** (inherited): Center box — assign a Cube mesh. Amber-tinted for Soil.
+- **HydroIntake** (inherited): Right box — assign a Cube mesh. Teal-tinted for Hydrosphere.
+
+No Class Defaults needed — delivery logic is fully C++. The hub accepts harvest crates via LMB and routes them to the correct terraform axis based on the crate's PlantType tag.
+
+### 2c. BP_SeedDispenser
+
+
+' '
 Blueprint Class > SeedDispenserActor > name `BP_SeedDispenser`.
 
-In Class Defaults:
+In Class Defaults:h
 - **Seed Pod Class:** Set to the carriable class (ACarriableBase or a BP subclass — see 2d)
 - **Available Plants:** Add entries for each plant DA asset (see step 3)
 - **Dispense Cooldown:** 5.0
@@ -342,14 +356,14 @@ In Class Defaults:
 Components:
 - **Mesh**: Assign a Cylinder mesh, scale to taste
 
-### 2c. BP_WaterReservoir
+### 2d. BP_WaterReservoir
 
 Blueprint Class > WaterReservoirActor > name `BP_WaterReservoir`.
 
 Components:
 - **Mesh**: Assign a Cylinder mesh (larger, blue-tinted)
 
-### 2d. BP_SeedPod, BP_WaterCanister, BP_HarvestCrate (optional)
+### 2e. BP_SeedPod, BP_WaterCanister, BP_HarvestCrate (optional)
 
 For distinct visual items, create Blueprint subclasses of `CarriableBase`:
 - **BP_SeedPod**: Sphere mesh, small (Scale 0.15), emissive material
@@ -370,7 +384,7 @@ Right-click > Miscellaneous > Data Asset > pick `PlantDataAsset` for each:
 - Plant Id: `aerolume`
 - Display Name: `Aerolume`
 - Plant Color: (0.5, 0.9, 0.2, 1) — Lime Green
-- Growth Seconds: 25
+- Growth Day Cycles: 0.5 (half a day cycle)
 - Water Drain Rate: 0.033
 - Pollination Window: 15
 - Terraform Axis: (leave blank for now, used in P3)
@@ -381,7 +395,7 @@ Right-click > Miscellaneous > Data Asset > pick `PlantDataAsset` for each:
 - Plant Id: `loamspine`
 - Display Name: `Loamspine`
 - Plant Color: (0.9, 0.6, 0.2, 1) — Amber
-- Growth Seconds: 50
+- Growth Day Cycles: 1.0 (one full day cycle)
 - Water Drain Rate: 0.033
 - Pollination Window: 15
 - Plant Tag: `Seed.Plant.Loamspine`
@@ -390,7 +404,7 @@ Right-click > Miscellaneous > Data Asset > pick `PlantDataAsset` for each:
 - Plant Id: `tidefern`
 - Display Name: `Tidefern`
 - Plant Color: (0.2, 0.8, 0.6, 1) — Teal
-- Growth Seconds: 100
+- Growth Day Cycles: 2.0 (two full day cycles)
 - Water Drain Rate: 0.033
 - Pollination Window: 15
 - Plant Tag: `Seed.Plant.Tidefern`
@@ -403,6 +417,8 @@ Open `BP_KilnseedGameMode` and add to **Default Abilities:**
 - GA_Interact (already there from P1)
 - GA_Pickup
 - GA_Place
+- GA_Harvest
+- GA_ManualPollinate
 
 ---
 
@@ -411,6 +427,9 @@ Open `BP_KilnseedGameMode` and add to **Default Abilities:**
 Open `BP_KilnseedPlayer` and set:
 - **Pickup Ability Class:** GA_Pickup
 - **Place Ability Class:** GA_Place
+- **Harvest Crate Class:** `CarriableBase` (or `BP_HarvestCrate` if you created one)
+- **IA_Flashlight:** `IA_Flashlight` (if created — see P1 extras below)
+- **Sprint Drain Effect:** `GE_SprintO2Drain` (if created — see P1 extras below)
 
 ---
 
@@ -420,21 +439,60 @@ Open `L_MainPlanet` and add:
 
 1. **3×3 Plot Grid**: Drag 9x `BP_Plot` into the level. Space them ~200 units apart in a 3×3 grid, offset ~800 units from center (south of hub).
 
-2. **Seed Dispenser**: Drag `BP_SeedDispenser` into the level. Place east of hub (~500 units). In its Details, add DA_Aerolume to the Available Plants array.
+2. **Seed Dispenser**: Drag `BP_SeedDispenser` into the level. Place east of hub (~500 units). In its Details:
+   - **Seed Pod Class:** `CarriableBase` (or `BP_SeedPod` if created)
+   - **Available Plants:** Click + and add `DA_Aerolume`
 
-3. **Water Reservoir**: Drag `BP_WaterReservoir` into the level. Place west of hub.
+3. **Water Reservoir**: Drag `BP_WaterReservoir` into the level. Place west of hub. In its Details:
+   - **Water Canister Class:** `CarriableBase` (or `BP_WaterCanister` if created)
+
+4. **Terraform Hub** (optional for P2, required for P3): Drag `BP_TerraformHub` into the level. Place north of hub.
+
+5. **Day/Night Cycle**: Place Actors > All Classes > search `DayNightCycleActor` > drag into level. Defaults: 60s day, 20s night. No configuration needed — it auto-finds the Directional Light.
+
+6. **Post Process Volume**: Place Actors > Post Process Volume. Enable **Infinite Extent**. Under Exposure:
+   - Metering Mode: Manual
+   - Min EV100: 10.0
+   - Max EV100: 10.0
 
 ---
 
-## 7. Test It
+## 7. P1 Extras (optional but recommended)
 
-1. Play in editor
-2. Walk to seed dispenser, press E → get a seed pod in hand
-3. Walk to an empty plot, left-click → plant the seed
-4. Watch the plant mesh scale up as GrowthProgress increases (check with `showdebug abilitysystem` on the plot)
-5. At 50% growth, plot enters POLLINATING state → press E to pollinate
-6. At 100%, plot enters BLOOMED → press E to harvest, get a crate
-7. Walk outside safe zone with the crate — O2 drains. Walk back in — O2 refills.
+These assets are created during P1 polish but not strictly required:
+
+**GE_SprintO2Drain** — Create in `Content/Kilnseed/Data/Effects/`:
+- Duration Policy: Infinite
+- Period: 0.25
+- Modifier: Attribute Based on O2DrainRate, Coefficient: -2.0
+- Assign in BP_KilnseedPlayer > Sprint Drain Effect
+
+**IA_Flashlight** — Create in `Content/Kilnseed/Input/`:
+- Value Type: Digital (Bool)
+- Add to IMC_Default: F key, no modifiers
+- Assign in BP_KilnseedPlayer > IA_Flashlight
+
+---
+
+## 8. Test It
+
+### Seed → Grow → Harvest loop
+1. Walk to seed dispenser, LMB to cycle plants, E to take a seed
+2. Walk to an empty plot, LMB → plant the seed
+3. Composite plant visual grows from seed size with emissive color
+4. Prompt shows `Growing... X% | Water: Y%`
+5. At 50%, plot enters POLLINATING — pulsing light appears, prompt shows `[E] Pollinate`
+6. Press E to pollinate — growth resumes (one-time gate)
+7. At 100%, prompt shows `[E] Harvest` — press E to get an emissive harvest crate
+
+### Water loop
+1. Walk to water reservoir, press E → get a blue water canister
+2. Walk to a growing plot, LMB → waters the plot (adds 50% water)
+3. Water level shown in plot prompt
+
+### Delivery (P3 preview)
+1. Carry a harvest crate to the Terraform Hub
+2. LMB → delivers the crate, advances the terraform axis
 
 ---
 
@@ -443,10 +501,12 @@ Open `L_MainPlanet` and add:
 ```
 Content/Kilnseed/
   Data/
-    Effects/GE_PlotGrowth, GE_WaterDrain
+    Effects/GE_PlotGrowth, GE_WaterDrain, GE_SprintO2Drain (optional)
     Plants/DA_Aerolume, DA_Loamspine, DA_Tidefern
+  Input/
+    IA_Flashlight (optional)
   Blueprints/Stations/
     BP_Plot, BP_SeedDispenser, BP_WaterReservoir
 ```
 
-Total: 8 new assets. ~15 minutes of editor work.
+Total: 8-10 new assets. ~15 minutes of editor work.

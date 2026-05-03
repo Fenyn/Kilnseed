@@ -7,7 +7,7 @@
 UGA_ManualPollinate::UGA_ManualPollinate()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::ServerInitiated;
+	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	SetAssetTags(FGameplayTagContainer(KilnseedTags::Ability_Pollinate));
 }

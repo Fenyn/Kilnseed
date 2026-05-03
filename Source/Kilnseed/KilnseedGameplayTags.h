@@ -61,6 +61,11 @@ namespace KilnseedTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SmartObject_WaterSource);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SmartObject_DeliveryTarget);
 
+	// Item types
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Seed);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_WaterCanister);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_HarvestCrate);
+
 	// Set By Caller data tags (GE magnitudes computed in code)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_GrowthRate);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_WaterDrain);

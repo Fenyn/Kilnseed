@@ -3,9 +3,13 @@
 #include "Player/CarryComponent.h"
 #include "Multiplayer/KilnseedPlayerState.h"
 #include "Multiplayer/KilnseedGameMode.h"
+#include "Stations/SeedDispenserActor.h"
+#include "GAS/Abilities/GA_Harvest.h"
+#include "GAS/Abilities/GA_ManualPollinate.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
 #include "GAS/KilnseedPlayerAttributeSet.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -32,6 +36,16 @@ AKilnseedPlayerCharacter::AKilnseedPlayerCharacter()
 	CarryComponent->SetupAttachment(CameraComponent);
 	CarryComponent->SetRelativeLocation(FVector(80.0f, 0.0f, -30.0f));
 
+	Flashlight = CreateDefaultSubobject<USpotLightComponent>(TEXT("Flashlight"));
+	Flashlight->SetupAttachment(CameraComponent);
+	Flashlight->SetRelativeLocation(FVector(10.0f, 0.0f, 0.0f));
+	Flashlight->SetInnerConeAngle(15.0f);
+	Flashlight->SetOuterConeAngle(30.0f);
+	Flashlight->SetIntensity(5000.0f);
+	Flashlight->SetAttenuationRadius(2000.0f);
+	Flashlight->SetLightColor(FLinearColor(1.0f, 0.95f, 0.85f));
+	Flashlight->SetVisibility(false);
+
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetCharacterMovement()->JumpZVelocity = 400.0f;
 	GetCharacterMovement()->AirControl = 0.2f;
@@ -49,6 +63,9 @@ void AKilnseedPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	TargetFOV = DefaultFOV;
+	DefaultCameraOffset = CameraComponent->GetRelativeLocation();
+
 	if (APlayerController* PC = Cast<APlayerController>(Controller))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
@@ -58,6 +75,38 @@ void AKilnseedPlayerCharacter::BeginPlay()
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 			}
+		}
+	}
+}
+
+void AKilnseedPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// FOV interpolation
+	float CurrentFOV = CameraComponent->FieldOfView;
+	if (!FMath::IsNearlyEqual(CurrentFOV, TargetFOV, 0.1f))
+	{
+		CameraComponent->SetFieldOfView(FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, FOVInterpSpeed));
+	}
+
+	// Head bob
+	float Speed = GetVelocity().Size2D();
+	if (Speed > 10.0f && GetCharacterMovement()->IsMovingOnGround())
+	{
+		float SpeedFraction = FMath::Clamp(Speed / (WalkSpeed * SprintMultiplier), 0.0f, 1.0f);
+		HeadBobTimer += DeltaTime * HeadBobFrequency * (0.6f + SpeedFraction * 0.4f);
+		float BobZ = FMath::Sin(HeadBobTimer * 2.0f) * HeadBobAmplitude * SpeedFraction;
+		float BobY = FMath::Cos(HeadBobTimer) * HeadBobSideAmplitude * SpeedFraction;
+		CameraComponent->SetRelativeLocation(DefaultCameraOffset + FVector(0.0f, BobY, BobZ));
+	}
+	else
+	{
+		HeadBobTimer = 0.0f;
+		FVector Current = CameraComponent->GetRelativeLocation();
+		if (!Current.Equals(DefaultCameraOffset, 0.1f))
+		{
+			CameraComponent->SetRelativeLocation(FMath::VInterpTo(Current, DefaultCameraOffset, DeltaTime, 10.0f));
 		}
 	}
 }
@@ -127,6 +176,8 @@ void AKilnseedPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInput->BindAction(IA_PrimaryAction, ETriggerEvent::Triggered, this, &AKilnseedPlayerCharacter::HandlePrimaryAction);
 	if (IA_BuildMenu)
 		EnhancedInput->BindAction(IA_BuildMenu, ETriggerEvent::Triggered, this, &AKilnseedPlayerCharacter::HandleBuildMenu);
+	if (IA_Flashlight)
+		EnhancedInput->BindAction(IA_Flashlight, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandleFlashlight);
 }
 
 void AKilnseedPlayerCharacter::HandleMove(const FInputActionValue& Value)
@@ -155,6 +206,8 @@ void AKilnseedPlayerCharacter::HandleJump()
 
 void AKilnseedPlayerCharacter::HandleSprintStart()
 {
+	bIsSprinting = true;
+	TargetFOV = SprintFOV;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * SprintMultiplier;
 
 	if (SprintDrainEffect)
@@ -172,6 +225,8 @@ void AKilnseedPlayerCharacter::HandleSprintStart()
 
 void AKilnseedPlayerCharacter::HandleSprintStop()
 {
+	bIsSprinting = false;
+	TargetFOV = DefaultFOV;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 
 	if (ActiveSprintDrainHandle.IsValid())
@@ -186,13 +241,14 @@ void AKilnseedPlayerCharacter::HandleSprintStop()
 
 void AKilnseedPlayerCharacter::HandleInteract()
 {
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
-	{
-		if (InteractAbilityClass)
-		{
-			ASC->TryActivateAbilityByClass(InteractAbilityClass);
-		}
-	}
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC) return;
+
+	if (ASC->TryActivateAbilityByClass(UGA_Harvest::StaticClass())) return;
+	if (ASC->TryActivateAbilityByClass(UGA_ManualPollinate::StaticClass())) return;
+
+	if (InteractAbilityClass)
+		ASC->TryActivateAbilityByClass(InteractAbilityClass);
 }
 
 void AKilnseedPlayerCharacter::HandlePrimaryAction()
@@ -207,12 +263,26 @@ void AKilnseedPlayerCharacter::HandlePrimaryAction()
 	}
 	else
 	{
+		bool bActivated = false;
 		if (PickupAbilityClass)
-			ASC->TryActivateAbilityByClass(PickupAbilityClass);
+			bActivated = ASC->TryActivateAbilityByClass(PickupAbilityClass);
+
+		if (!bActivated)
+		{
+			if (ASeedDispenserActor* Dispenser = Cast<ASeedDispenserActor>(InteractionComponent->GetCurrentInteractable()))
+			{
+				Dispenser->CyclePlant();
+			}
+		}
 	}
 }
 
 void AKilnseedPlayerCharacter::HandleBuildMenu()
 {
 	// Will activate GA_EnterBuildMode via ASC in P3
+}
+
+void AKilnseedPlayerCharacter::HandleFlashlight()
+{
+	Flashlight->ToggleVisibility();
 }

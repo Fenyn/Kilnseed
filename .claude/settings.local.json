@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"G:\\\\Unreal\\\\SKGSFExample\" -Directory)",
+      "Bash(Select-Object Name)"
+    ]
+  }
+}

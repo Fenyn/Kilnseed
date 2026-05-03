@@ -9,7 +9,7 @@
 UGA_Harvest::UGA_Harvest()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::ServerInitiated;
+	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	SetAssetTags(FGameplayTagContainer(KilnseedTags::Ability_Harvest));
 }
@@ -45,11 +45,14 @@ void UGA_Harvest::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	{
 		FVector SpawnLoc = Plot->GetActorLocation() + FVector(0, 0, 80);
 
-		TSubclassOf<AActor> CrateClass = HarvestCrateClass ? HarvestCrateClass : TSubclassOf<AActor>(ACarriableBase::StaticClass());
+		TSubclassOf<AActor> CrateClass = Character->HarvestCrateClass ? Character->HarvestCrateClass : TSubclassOf<AActor>(ACarriableBase::StaticClass());
 		ACarriableBase* Crate = Plot->GetWorld()->SpawnActor<ACarriableBase>(CrateClass, SpawnLoc, FRotator::ZeroRotator);
 		if (Crate)
 		{
+			Crate->ItemType = KilnseedTags::Item_HarvestCrate;
 			Crate->PlantType = Plot->PlantedTag;
+			Crate->ItemColor = Plot->PlantedColor;
+			Crate->SetItemColor(Plot->PlantedColor);
 			Character->CarryComponent->PickupItem(Crate);
 		}
 

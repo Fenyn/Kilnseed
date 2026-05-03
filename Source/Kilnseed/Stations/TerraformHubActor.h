@@ -21,6 +21,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hub")
 	TObjectPtr<UStaticMeshComponent> HydroIntake;
 
+protected:
+	void BeginPlay() override;
+
 	void Interact_Implementation(AKilnseedPlayerCharacter* Player) override;
 	FText GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const override;
 	bool CanReceiveItem_Implementation(ACarriableBase* Item) const override;

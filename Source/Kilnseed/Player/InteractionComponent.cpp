@@ -1,4 +1,5 @@
 #include "Player/InteractionComponent.h"
+#include "Player/KilnseedPlayerCharacter.h"
 #include "Stations/Interactable.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Character.h"
@@ -55,6 +56,6 @@ FText UInteractionComponent::GetInteractPrompt() const
 {
 	if (!CurrentInteractable) return FText::GetEmpty();
 
-	// Will call IInteractable::GetInteractPrompt in P1
-	return FText::FromString(FString::Printf(TEXT("[E] %s"), *CurrentInteractable->GetActorLabel()));
+	AKilnseedPlayerCharacter* Player = Cast<AKilnseedPlayerCharacter>(GetOwner());
+	return IInteractable::Execute_GetInteractPrompt(CurrentInteractable, Player);
 }

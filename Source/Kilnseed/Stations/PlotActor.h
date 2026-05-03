@@ -10,6 +10,8 @@ class UKilnseedAbilitySystemComponent;
 class UKilnseedPlotAttributeSet;
 class UPlantDataAsset;
 class UGameplayEffect;
+class UPlantVisualComponent;
+class UPointLightComponent;
 
 UCLASS()
 class KILNSEED_API APlotActor : public AStationBase, public IAbilitySystemInterface
@@ -36,6 +38,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Plot")
 	TObjectPtr<const UPlantDataAsset> PlantData;
 
+	FLinearColor PlantedColor = FLinearColor::White;
+
 	void PlantSeed(FGameplayTag PlantTag, const UPlantDataAsset* Data);
 	void ApplyWater(float Amount);
 	void Pollinate();
@@ -51,7 +55,10 @@ public:
 	bool ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Plot")
-	TObjectPtr<UStaticMeshComponent> PlantMeshComponent;
+	TObjectPtr<UPlantVisualComponent> PlantVisual;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Plot")
+	TObjectPtr<UPointLightComponent> PollinateLight;
 
 protected:
 	void BeginPlay() override;
@@ -67,6 +74,11 @@ private:
 	FActiveGameplayEffectHandle ActiveGrowthHandle;
 	FActiveGameplayEffectHandle ActiveWaterDrainHandle;
 
+	bool bPollinated = false;
+
+	void Tick(float DeltaTime) override;
 	void SetState(FGameplayTag NewState);
 	void UpdatePlantVisual();
+	float GetGrowthSeconds() const;
+	void ApplyGrowthEffect();
 };

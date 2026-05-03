@@ -1,4 +1,5 @@
 #include "Stations/PlotActor.h"
+#include "Stations/PlantVisualComponent.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
 #include "GAS/KilnseedPlotAttributeSet.h"
 #include "Data/PlantDataAsset.h"
@@ -9,6 +10,8 @@
 #include "Core/EventBusSubsystem.h"
 #include "KilnseedGameplayTags.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Core/DayNightCycleActor.h"
 #include "Net/UnrealNetwork.h"
 
 APlotActor::APlotActor()
@@ -20,10 +23,17 @@ APlotActor::APlotActor()
 
 	PlotAttributes = CreateDefaultSubobject<UKilnseedPlotAttributeSet>(TEXT("PlotAttributes"));
 
-	PlantMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlantMesh"));
-	PlantMeshComponent->SetupAttachment(MeshComponent);
-	PlantMeshComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 10.0f));
-	PlantMeshComponent->SetVisibility(false);
+	PlantVisual = CreateDefaultSubobject<UPlantVisualComponent>(TEXT("PlantVisual"));
+	PlantVisual->SetupAttachment(MeshComponent);
+	PlantVisual->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
+
+	PollinateLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("PollinateLight"));
+	PollinateLight->SetupAttachment(MeshComponent);
+	PollinateLight->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+	PollinateLight->SetIntensity(0.0f);
+	PollinateLight->SetAttenuationRadius(500.0f);
+	PollinateLight->SetLightColor(FLinearColor::White);
+	PollinateLight->SetVisibility(false);
 
 	CurrentState = KilnseedTags::Plot_Empty;
 	StationName = FText::FromString(TEXT("Plot"));
@@ -54,6 +64,26 @@ void APlotActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	DOREPLIFETIME(APlotActor, PlantedTag);
 }
 
+float APlotActor::GetGrowthSeconds() const
+{
+	float DayCycles = PlantData ? PlantData->GrowthDayCycles : 1.0f;
+	float DayLen = ADayNightCycleActor::GetDayDuration(GetWorld());
+	return DayCycles * DayLen;
+}
+
+void APlotActor::ApplyGrowthEffect()
+{
+	if (!GrowthEffect || ActiveGrowthHandle.IsValid()) return;
+
+	constexpr float Period = 0.25f;
+	FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(GrowthEffect, 1.0f, AbilitySystemComponent->MakeEffectContext());
+	if (Spec.IsValid())
+	{
+		Spec.Data->SetSetByCallerMagnitude(KilnseedTags::Data_GrowthRate, Period / GetGrowthSeconds());
+		ActiveGrowthHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	}
+}
+
 void APlotActor::SetState(FGameplayTag NewState)
 {
 	if (CurrentState.IsValid())
@@ -75,20 +105,27 @@ void APlotActor::PlantSeed(FGameplayTag InPlantTag, const UPlantDataAsset* Data)
 	PlotAttributes->InitGrowthProgress(0.0f);
 	PlotAttributes->InitWaterLevel(0.5f);
 
+	FName PlantId = Data ? Data->PlantId : FName();
+	if (PlantId.IsNone())
+	{
+		FString TagStr = PlantedTag.GetTagName().ToString();
+		int32 LastDot;
+		if (TagStr.FindLastChar('.', LastDot))
+			PlantId = FName(*TagStr.RightChop(LastDot + 1));
+		else
+			PlantId = FName(*TagStr);
+	}
+	FLinearColor Color = Data ? Data->PlantColor : PlantedColor;
+	PollinateLight->SetLightColor(Color);
+
 	SetState(KilnseedTags::Plot_Growing);
+
+	PlantVisual->BuildPlantVisual(PlantId, Color);
+	UpdatePlantVisual();
 
 	constexpr float Period = 0.25f;
 
-	if (GrowthEffect)
-	{
-		FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(GrowthEffect, 1.0f, AbilitySystemComponent->MakeEffectContext());
-		if (Spec.IsValid())
-		{
-			float GrowthSeconds = Data ? Data->GrowthSeconds : 100.0f;
-			Spec.Data->SetSetByCallerMagnitude(KilnseedTags::Data_GrowthRate, Period / GrowthSeconds);
-			ActiveGrowthHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-		}
-	}
+	ApplyGrowthEffect();
 
 	if (WaterDrainEffect)
 	{
@@ -124,7 +161,10 @@ void APlotActor::Pollinate()
 {
 	if (!HasAuthority() || CurrentState != KilnseedTags::Plot_Pollinating) return;
 
+	bPollinated = true;
 	SetState(KilnseedTags::Plot_Growing);
+
+	ApplyGrowthEffect();
 
 	if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
 	{
@@ -158,10 +198,13 @@ void APlotActor::ResetPlot()
 
 	PlantedTag = FGameplayTag();
 	PlantData = nullptr;
+	PlantedColor = FLinearColor::White;
+	bPollinated = false;
 	PlotAttributes->InitGrowthProgress(0.0f);
 	PlotAttributes->InitWaterLevel(0.0f);
 	PlotAttributes->InitGrowthRate(1.0f);
 
+	PlantVisual->ClearVisual();
 	SetState(KilnseedTags::Plot_Empty);
 }
 
@@ -173,19 +216,28 @@ void APlotActor::CheckGrowthThresholds()
 	bool bIsGrowing = CurrentState == KilnseedTags::Plot_Growing;
 	bool bIsPollinating = CurrentState == KilnseedTags::Plot_Pollinating;
 
-	if ((bIsGrowing || bIsPollinating) && Growth >= 1.0f)
+	if (bIsGrowing && Growth >= 1.0f)
 	{
 		SetState(KilnseedTags::Plot_Bloomed);
-		AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGrowthHandle);
-		AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveWaterDrainHandle);
+		if (ActiveGrowthHandle.IsValid())
+			AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGrowthHandle);
+		if (ActiveWaterDrainHandle.IsValid())
+			AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveWaterDrainHandle);
 
 		if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
 		{
 			EB->OnPlantBloomed.Broadcast(this);
 		}
 	}
-	else if (bIsGrowing && Growth >= 0.5f)
+	else if (bIsGrowing && !bPollinated && Growth >= 0.5f)
 	{
+		// Pause growth until pollinated
+		if (ActiveGrowthHandle.IsValid())
+		{
+			AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGrowthHandle);
+			ActiveGrowthHandle.Invalidate();
+		}
+
 		SetState(KilnseedTags::Plot_Pollinating);
 
 		if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
@@ -197,8 +249,6 @@ void APlotActor::CheckGrowthThresholds()
 
 void APlotActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)
 {
-	// Pollinating and Bloomed states are handled by GA_ManualPollinate and GA_Harvest.
-	// This fallback only fires if those abilities aren't granted.
 	if (CurrentState == KilnseedTags::Plot_Pollinating)
 	{
 		Pollinate();
@@ -207,8 +257,36 @@ void APlotActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)
 
 FText APlotActor::GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const
 {
+	if (CurrentState == KilnseedTags::Plot_Empty)
+	{
+		if (Player && Player->CarryComponent && Player->CarryComponent->IsCarrying())
+			return FText::FromString(TEXT("[LMB] Plant Seed"));
+		return FText::FromString(TEXT("Empty Plot"));
+	}
+
+	int32 Pct = FMath::RoundToInt(PlotAttributes->GetGrowthProgress() * 100.0f);
+	int32 Water = FMath::RoundToInt(PlotAttributes->GetWaterLevel() * 100.0f);
+	FString WaterStr = Water < 30 ? FString::Printf(TEXT(" | Water: %d%% LOW"), Water) : FString::Printf(TEXT(" | Water: %d%%"), Water);
+
+	bool bCarryingWater = false;
+	if (Player && Player->CarryComponent && Player->CarryComponent->IsCarrying())
+	{
+		ACarriableBase* Held = Player->CarryComponent->GetHeldItem();
+		bCarryingWater = Held && Held->ItemType == KilnseedTags::Item_WaterCanister;
+	}
+
+	if (CurrentState == KilnseedTags::Plot_Growing)
+	{
+		FString Base = FString::Printf(TEXT("Growing... %d%%%s"), Pct, *WaterStr);
+		if (bCarryingWater) Base += TEXT(" | [LMB] Water");
+		return FText::FromString(Base);
+	}
 	if (CurrentState == KilnseedTags::Plot_Pollinating)
-		return FText::FromString(TEXT("[E] Pollinate"));
+	{
+		FString Base = FString::Printf(TEXT("[E] Pollinate (%d%%)%s"), Pct, *WaterStr);
+		if (bCarryingWater) Base += TEXT(" | [LMB] Water");
+		return FText::FromString(Base);
+	}
 	if (CurrentState == KilnseedTags::Plot_Bloomed)
 		return FText::FromString(TEXT("[E] Harvest"));
 	return FText::FromString(TEXT("Plot"));
@@ -220,7 +298,12 @@ bool APlotActor::CanReceiveItem_Implementation(ACarriableBase* Item) const
 
 	if (CurrentState == KilnseedTags::Plot_Empty)
 	{
-		return Item->PlantType.MatchesTag(FGameplayTag::RequestGameplayTag(FName("Seed.Plant")));
+		return Item->ItemType == KilnseedTags::Item_Seed && Item->PlantType.IsValid();
+	}
+
+	if (CurrentState != KilnseedTags::Plot_Empty && CurrentState != KilnseedTags::Plot_Bloomed)
+	{
+		return Item->ItemType == KilnseedTags::Item_WaterCanister;
 	}
 
 	return false;
@@ -230,9 +313,17 @@ bool APlotActor::ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlaye
 {
 	if (!HasAuthority() || !Item) return false;
 
+	if (Item->ItemType == KilnseedTags::Item_WaterCanister && CurrentState != KilnseedTags::Plot_Empty)
+	{
+		ApplyWater(0.5f);
+		Item->Destroy();
+		return true;
+	}
+
 	if (CurrentState == KilnseedTags::Plot_Empty)
 	{
-		PlantSeed(Item->PlantType, nullptr);
+		PlantedColor = Item->ItemColor;
+		PlantSeed(Item->PlantType, Item->PlantData);
 		Item->Destroy();
 		return true;
 	}
@@ -240,18 +331,48 @@ bool APlotActor::ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlaye
 	return false;
 }
 
+void APlotActor::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (CurrentState != KilnseedTags::Plot_Empty)
+	{
+		UpdatePlantVisual();
+
+		// Pause growth when water runs out, resume when watered
+		if (CurrentState == KilnseedTags::Plot_Growing && HasAuthority())
+		{
+			float Water = PlotAttributes->GetWaterLevel();
+			if (Water <= 0.0f && ActiveGrowthHandle.IsValid())
+			{
+				AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGrowthHandle);
+				ActiveGrowthHandle.Invalidate();
+			}
+			else if (Water > 0.0f && !ActiveGrowthHandle.IsValid())
+			{
+				ApplyGrowthEffect();
+			}
+		}
+	}
+
+	if (CurrentState == KilnseedTags::Plot_Pollinating)
+	{
+		PollinateLight->SetVisibility(true);
+		float Pulse = (FMath::Sin(GetWorld()->GetTimeSeconds() * 3.0f) + 1.0f) * 0.5f;
+		PollinateLight->SetIntensity(FMath::Lerp(150.0f, 500.0f, Pulse));
+	}
+	else if (PollinateLight->IsVisible())
+	{
+		PollinateLight->SetVisibility(false);
+		PollinateLight->SetIntensity(0.0f);
+	}
+}
+
 void APlotActor::UpdatePlantVisual()
 {
 	if (CurrentState == KilnseedTags::Plot_Empty)
-	{
-		PlantMeshComponent->SetVisibility(false);
-		PlantMeshComponent->SetRelativeScale3D(FVector(0.0f));
-	}
-	else
-	{
-		PlantMeshComponent->SetVisibility(true);
-		float Growth = PlotAttributes->GetGrowthProgress();
-		float Scale = FMath::Lerp(0.2f, 1.0f, Growth);
-		PlantMeshComponent->SetRelativeScale3D(FVector(Scale, Scale, Scale));
-	}
+		return;
+
+	float Growth = PlotAttributes->GetGrowthProgress();
+	PlantVisual->UpdateGrowth(Growth);
 }

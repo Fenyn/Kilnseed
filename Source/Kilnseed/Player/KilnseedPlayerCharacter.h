@@ -6,6 +6,7 @@
 #include "KilnseedPlayerCharacter.generated.h"
 
 class UCameraComponent;
+class USpotLightComponent;
 class UInteractionComponent;
 class UCarryComponent;
 class UInputMappingContext;
@@ -35,8 +36,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry")
 	TObjectPtr<UCarryComponent> CarryComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flashlight")
+	TObjectPtr<USpotLightComponent> Flashlight;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+	TSubclassOf<AActor> HarvestCrateClass;
+
 protected:
 	void BeginPlay() override;
+	void Tick(float DeltaTime) override;
 	void PossessedBy(AController* NewController) override;
 	void OnRep_PlayerState() override;
 	void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -65,11 +73,32 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_BuildMenu;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_Flashlight;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float WalkSpeed = 450.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float SprintMultiplier = 1.5f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float DefaultFOV = 75.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float SprintFOV = 85.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float FOVInterpSpeed = 8.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float HeadBobAmplitude = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float HeadBobSideAmplitude = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	float HeadBobFrequency = 8.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	TSubclassOf<UGameplayEffect> SprintDrainEffect;
@@ -89,6 +118,11 @@ private:
 
 	FActiveGameplayEffectHandle ActiveSprintDrainHandle;
 
+	bool bIsSprinting = false;
+	float TargetFOV = 75.0f;
+	float HeadBobTimer = 0.0f;
+	FVector DefaultCameraOffset;
+
 	void HandleMove(const FInputActionValue& Value);
 	void HandleLook(const FInputActionValue& Value);
 	void HandleJump();
@@ -97,4 +131,5 @@ private:
 	void HandleInteract();
 	void HandlePrimaryAction();
 	void HandleBuildMenu();
+	void HandleFlashlight();
 };

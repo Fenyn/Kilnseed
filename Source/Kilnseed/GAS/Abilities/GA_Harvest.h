@@ -17,7 +17,4 @@ public:
 	bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags,
 		FGameplayTagContainer* OptionalRelevantTags) const override;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Harvest")
-	TSubclassOf<AActor> HarvestCrateClass;
 };

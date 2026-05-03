@@ -2,6 +2,7 @@
 #include "Multiplayer/KilnseedPlayerState.h"
 #include "Multiplayer/KilnseedGameState.h"
 #include "Player/KilnseedPlayerCharacter.h"
+#include "Player/KilnseedHUD.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
 #include "GAS/KilnseedPlayerAttributeSet.h"
 #include "GameplayEffect.h"
@@ -12,6 +13,7 @@ AKilnseedGameMode::AKilnseedGameMode()
 	DefaultPawnClass = AKilnseedPlayerCharacter::StaticClass();
 	PlayerStateClass = AKilnseedPlayerState::StaticClass();
 	GameStateClass = AKilnseedGameState::StaticClass();
+	HUDClass = AKilnseedHUD::StaticClass();
 }
 
 void AKilnseedGameMode::PostLogin(APlayerController* NewPlayer)
