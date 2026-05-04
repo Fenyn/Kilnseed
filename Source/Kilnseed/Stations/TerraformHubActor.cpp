@@ -3,7 +3,6 @@
 #include "Player/KilnseedPlayerCharacter.h"
 #include "Player/CarryComponent.h"
 #include "Core/TerraformManagerSubsystem.h"
-#include "Multiplayer/KilnseedGameState.h"
 #include "KilnseedGameplayTags.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -69,54 +68,103 @@ void ATerraformHubActor::BeginPlay()
 		HydroIntake->SetMaterial(0, MID);
 }
 
-FName ATerraformHubActor::GetAxisForPlantTag(const FGameplayTag& PlantTag) const
+FName ATerraformHubActor::GetPlantName(const FGameplayTag& PlantTag) const
 {
 	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Aerolume)) return FName("aerolume");
 	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Loamspine)) return FName("loamspine");
 	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Tidefern)) return FName("tidefern");
+	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Glowmoss)) return FName("glowmoss");
+	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Crystalvine)) return FName("crystalvine");
+	if (PlantTag.MatchesTagExact(KilnseedTags::Plant_Deepcoral)) return FName("deepcoral");
+	return NAME_None;
+}
+
+FName ATerraformHubActor::FindAcceptingAxis(FName PlantName) const
+{
+	UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>();
+	if (!TM) return NAME_None;
+
+	static const FName AxisNames[] = { KilnseedAxes::Atmosphere, KilnseedAxes::Soil, KilnseedAxes::Hydrosphere };
+	for (const FName& Axis : AxisNames)
+	{
+		if (TM->CanDeposit(Axis, PlantName))
+			return Axis;
+	}
 	return NAME_None;
 }
 
 bool ATerraformHubActor::CanReceiveItem_Implementation(ACarriableBase* Item) const
 {
-	if (!Item) return false;
-	return Item->ItemType == KilnseedTags::Item_HarvestCrate && Item->PlantType.IsValid();
+	if (!Item || Item->ItemType != KilnseedTags::Item_HarvestCrate) return false;
+
+	FName PlantName = GetPlantName(Item->PlantType);
+	return PlantName != NAME_None && FindAcceptingAxis(PlantName) != NAME_None;
 }
 
 bool ATerraformHubActor::ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player)
 {
 	if (!HasAuthority() || !Item) return false;
 
-	FName PlantName = GetAxisForPlantTag(Item->PlantType);
-	if (PlantName == NAME_None) return false;
+	FName PlantName = GetPlantName(Item->PlantType);
+	FName Axis = FindAcceptingAxis(PlantName);
+	if (Axis.IsNone()) return false;
 
-	if (UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>())
+	UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>();
+	if (!TM) return false;
+
+	bool bDeposited = TM->Deposit(Axis, PlantName);
+	if (bDeposited)
 	{
-		TM->Deliver(PlantName);
+		Item->Destroy();
+		return true;
 	}
-
-	Item->Destroy();
-	return true;
+	return false;
 }
 
 void ATerraformHubActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)
 {
-	// Opens terraform info UI in future — for now just a visual station
 }
 
 FText ATerraformHubActor::GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const
 {
+	UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>();
+	if (!TM) return FText::FromString(TEXT("Terraform Hub"));
+
+	// Check if player is carrying something we can accept
 	if (Player && Player->CarryComponent && Player->CarryComponent->IsCarrying())
 	{
 		ACarriableBase* Held = Player->CarryComponent->GetHeldItem();
 		if (Held && Held->ItemType == KilnseedTags::Item_HarvestCrate)
 		{
-			FName Axis = GetAxisForPlantTag(Held->PlantType);
-			FString AxisName = Axis.IsNone() ? TEXT("Unknown") : Axis.ToString();
-			AxisName[0] = FChar::ToUpper(AxisName[0]);
-			return FText::FromString(FString::Printf(TEXT("[LMB] Deliver to %s"), *AxisName));
+			FName PlantName = GetPlantName(Held->PlantType);
+			FName Axis = FindAcceptingAxis(PlantName);
+			if (Axis != NAME_None)
+			{
+				return FText::FromString(FString::Printf(TEXT("[LMB] Deliver %s to %s"),
+					*PlantName.ToString(), *Axis.ToString()));
+			}
+			return FText::FromString(TEXT("Terraform Hub (not needed right now)"));
 		}
-		return FText::FromString(TEXT("Terraform Hub (need harvest crate)"));
 	}
-	return FText::FromString(TEXT("Terraform Hub | ATMO - SOIL - HYDRO"));
+
+	// Show current tier recipes summary
+	FString Summary = TEXT("Terraform Hub");
+	static const FName AxisNames[] = { KilnseedAxes::Atmosphere, KilnseedAxes::Soil, KilnseedAxes::Hydrosphere };
+	for (const FName& Axis : AxisNames)
+	{
+		const FAxisProgress* Progress = TM->GetAxisProgress(Axis);
+		if (!Progress) continue;
+
+		const FTerraformTier* Tier = Progress->GetCurrentTier();
+		if (Tier)
+		{
+			Summary += FString::Printf(TEXT(" | %s: %s"), *Axis.ToString(), *Tier->DisplayName.ToString());
+		}
+		else
+		{
+			Summary += FString::Printf(TEXT(" | %s: DONE"), *Axis.ToString());
+		}
+	}
+
+	return FText::FromString(Summary);
 }

@@ -2,12 +2,22 @@
 
 #include "NativeGameplayTags.h"
 
+namespace KilnseedAxes
+{
+	inline const FName Atmosphere("atmosphere");
+	inline const FName Soil("soil");
+	inline const FName Hydrosphere("hydrosphere");
+}
+
 namespace KilnseedTags
 {
 	// Plants
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Aerolume);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Loamspine);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Tidefern);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Glowmoss);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Crystalvine);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plant_Deepcoral);
 
 	// Plot states
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Plot_Empty);

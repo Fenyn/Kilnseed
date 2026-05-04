@@ -4,6 +4,8 @@
 #include "GameplayTagContainer.h"
 #include "BeeManagerSubsystem.generated.h"
 
+class ABeeActor;
+
 UCLASS()
 class KILNSEED_API UBeeManagerSubsystem : public UWorldSubsystem
 {
@@ -13,26 +15,37 @@ public:
 	void Initialize(FSubsystemCollectionBase& Collection) override;
 	void Deinitialize() override;
 
-	void RegisterBee(AActor* Bee);
-	void UnregisterBee(AActor* Bee);
-	void AssignBee(AActor* Bee, FGameplayTag Role);
-	void UnassignBee(AActor* Bee);
+	void RegisterBee(ABeeActor* Bee);
+	void UnregisterBee(ABeeActor* Bee);
 
+	void AssignRole(ABeeActor* Bee, FGameplayTag Role);
+	FGameplayTag AutoAssignRole();
+
+	void SpawnBees(FVector HiveLocation, int32 Count);
+	void ApplySpeedMultiplier(float Multiplier);
+
+	int32 GetFleetSize() const { return Fleet.Num(); }
+	int32 GetIdleCount() const;
 	int32 GetActiveCount() const;
 	float GetPowerDraw() const;
+	FVector GetHiveLocation() const { return CachedHiveLocation; }
+
+	ABeeActor* GetFirstIdleBee() const;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Bees")
 	float WattsPerBee = 2.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Bees")
-	int32 SpeedTier = 0;
+	int32 InitialBeeCount = 3;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Bees")
-	int32 CarryTier = 0;
+	bool bBeesUnlocked = false;
 
 private:
-	UPROPERTY()
-	TArray<TObjectPtr<AActor>> Fleet;
+	UFUNCTION()
+	void OnMilestoneReached(FName MilestoneId);
 
-	TMap<AActor*, FGameplayTag> Assignments;
+	UPROPERTY()
+	TArray<TObjectPtr<ABeeActor>> Fleet;
+
+	FVector CachedHiveLocation = FVector::ZeroVector;
 };

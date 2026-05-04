@@ -1,512 +1,617 @@
-# Kilnseed P1 — Editor Setup Guide
+# Kilnseed — Editor Setup Guide
 
-All C++ is in place. This guide covers everything you need to create in-editor to get the game running: walking around, O2 draining outside the safe zone, dying and respawning.
-
----
-
-## 1. Enhanced Input Assets
-
-Create all assets in `Content/Kilnseed/Input/`.
-
-### 1a. Input Actions (7 assets)
-
-Right-click in Content Browser > Input > Input Action for each:
-
-| Asset Name | Value Type | Notes |
-|------------|-----------|-------|
-| `IA_Move` | Axis2D (Vector2D) | WASD movement |
-| `IA_Look` | Axis2D (Vector2D) | Mouse look |
-| `IA_Jump` | Digital (Bool) | Space bar |
-| `IA_Sprint` | Digital (Bool) | Shift (hold) |
-| `IA_Interact` | Digital (Bool) | E key |
-| `IA_PrimaryAction` | Digital (Bool) | Left mouse button |
-| `IA_BuildMenu` | Digital (Bool) | B key |
-
-For each: double-click to open, set the Value Type, save.
-
-### 1b. Input Mapping Context (1 asset)
-
-Right-click > Input > Input Mapping Context. Name it `IMC_Default`.
-
-Double-click to open and add these mappings:
-
-**IA_Move:**
-- W → Modifiers: Swizzle Input Axis Values (YXZ), then this gives forward
-- S → Modifiers: Swizzle Input Axis Values (YXZ), Negate
-- D → (no modifiers needed, gives positive X)
-- A → Modifiers: Negate
-
-**IA_Look:**
-- Mouse XY 2D-Axis → Modifiers: Negate (Y axis only, so pitch isn't inverted — add a "Negate" modifier and set Y to true, X to false)
-
-**IA_Jump:**
-- Space Bar → (no modifiers)
-
-**IA_Sprint:**
-- Left Shift → (no modifiers)
-
-**IA_Interact:**
-- E → (no modifiers)
-
-**IA_PrimaryAction:**
-- Left Mouse Button → (no modifiers)
-
-**IA_BuildMenu:**
-- B → (no modifiers)
-
-Save.
+All C++ is in place. This guide covers the editor-side assets you need to create.
 
 ---
 
-## 2. Gameplay Effects
+## Build System (P3)
 
-Create assets in `Content/Kilnseed/Data/Effects/`.
+### 1. Create IA_BuildSelect Input Action
 
-### 2a. GE_O2Drain
+In `Content/Kilnseed/Input/`:
 
-Right-click > Blueprint Class > search "GameplayEffect" > select GameplayEffect > name it `GE_O2Drain`.
+Right-click > Input > Input Action. Name it `IA_BuildSelect`.
+- **Value Type:** Axis1D (Float)
 
-Double-click to open. Set:
+Open `IMC_Default` and add mappings for `IA_BuildSelect`:
 
-- **Duration Policy:** Infinite
-- **Period:** 0.25
+| Key | Modifiers                |
+|-----|--------------------------|
+| 1   | (none — default 1.0)    |
+| 2   | Scalar, Scale X = 2.0   |
+| 3   | Scalar, Scale X = 3.0   |
+| 4   | Scalar, Scale X = 4.0   |
+| 5   | Scalar, Scale X = 5.0   |
+| 6   | Scalar, Scale X = 6.0   |
+| 7   | Scalar, Scale X = 7.0   |
 
-Under **Modifiers**, click + to add one:
-- **Attribute:** KilnseedPlayerAttributeSet.O2Level
-- **Modifier Op:** Add
-- **Modifier Magnitude > Magnitude Calculation Type:** Attribute Based
-- **Backing Attribute > Attribute to Capture:** KilnseedPlayerAttributeSet.O2DrainRate
-- **Attribute Source:** Source
-- **Coefficient:** -1.0
+Then open `BP_KilnseedPlayer` and set **IA_BuildSelect** to the new action.
 
-The drain rate is computed in C++ from O2MaxDuration (default 60s). Coefficient -1 makes it subtract.
+### 2. Create Buildable Data Assets
 
-Save.
+Create all in `Content/Kilnseed/Data/Blueprints/`.
 
-### 2b. GE_O2Refill
+Right-click > Miscellaneous > Data Asset > pick `BlueprintDataAsset` for each:
 
-Same process. Name it `GE_O2Refill`.
+#### DA_Plot
+- **Blueprint Id:** `plot`
+- **Display Name:** `Plot`
+- **Actor Class:** `BP_Plot` (the blueprint from P2)
+- **Resource Cost:** `0` (free — spawns directly, no ghost)
+- **Requires Soil:** `true`
 
-- **Duration Policy:** Infinite
-- **Period:** 0.25
+#### DA_WindTurbine
+- **Blueprint Id:** `windturbine`
+- **Display Name:** `Wind Turbine`
+- **Actor Class:** `WindTurbineActor` (update to `BP_WindTurbine` after step 3)
+- **Resource Cost:** `1`
 
-**Modifier:**
-- **Attribute:** KilnseedPlayerAttributeSet.O2Level
-- **Modifier Op:** Add
-- **Magnitude Calculation Type:** Attribute Based
-- **Backing Attribute > Attribute to Capture:** KilnseedPlayerAttributeSet.O2DrainRate
-- **Attribute Source:** Source
-- **Coefficient:** 3.0 (refills 3x faster than drain)
+#### DA_SolarPanel
+- **Blueprint Id:** `solarpanel`
+- **Display Name:** `Solar Panel`
+- **Actor Class:** `SolarPanelActor` (update to `BP_SolarPanel` after step 3)
+- **Resource Cost:** `2`
 
-Save.
+#### DA_Battery
+- **Blueprint Id:** `battery`
+- **Display Name:** `Battery`
+- **Actor Class:** `BatteryActor` (update to `BP_Battery` after step 3)
+- **Resource Cost:** `1`
 
----
+### 3. Create Buildable Blueprints
 
-## 3. BP_SafeZone
+Create all in `Content/Kilnseed/Blueprints/Stations/`.
 
-Create in `Content/Kilnseed/Blueprints/Stations/`.
+#### BP_WindTurbine
+Right-click > Blueprint Class > All Classes > search `WindTurbineActor`.
 
-Right-click > Blueprint Class > All Classes > search `SafeZoneVolume` > select it > name `BP_SafeZone`.
+No configuration needed — the C++ constructor builds the full composite shape:
+- Cylinder pole, cube nacelle, 3 spinning blade arms
+- Blades rotate at a speed proportional to wind intensity
+- Wind is strong early (thin atmosphere) and gusty/mild late
 
-Double-click to open. In the Details panel (Class Defaults):
-- **O2 Drain Effect:** GE_O2Drain
-- **O2 Refill Effect:** GE_O2Refill
+In Class Defaults (optional tweaks):
+- **Watts Provided:** `5.0` (max output at full wind)
 
-Save. The volume size (800x800x600 units) is already set in C++.
+Go back to `DA_WindTurbine` and update **Actor Class** to `BP_WindTurbine`.
 
----
+#### BP_SolarPanel
+Right-click > Blueprint Class > All Classes > search `SolarPanelActor`.
 
-## 4. BP_KilnseedPlayer
+No configuration needed — C++ builds the composite:
+- Cylinder pole with a flat dark blue panel on a pivot
+- Panel tracks the sun throughout the day cycle, rests flat at night
+- Power output scales with atmosphere progress (10% at 0% atmo, 100% at full)
 
-Create in `Content/Kilnseed/Blueprints/Player/`.
+In Class Defaults (optional tweaks):
+- **Watts Provided:** `10.0` (max output at full atmosphere)
+- **Min Efficiency:** `0.1`
 
-Right-click > Blueprint Class > All Classes > search `KilnseedPlayerCharacter` > select it > name `BP_KilnseedPlayer`.
+Go back to `DA_SolarPanel` and update **Actor Class** to `BP_SolarPanel`.
 
-Double-click to open. In Class Defaults, assign:
+#### BP_Battery
+Right-click > Blueprint Class > All Classes > search `BatteryActor`.
 
-**Input section:**
-- Default Mapping Context: `IMC_Default`
-- IA_Move: `IA_Move`
-- IA_Look: `IA_Look`
-- IA_Jump: `IA_Jump`
-- IA_Sprint: `IA_Sprint`
-- IA_Interact: `IA_Interact`
-- IA_PrimaryAction: `IA_PrimaryAction`
-- IA_BuildMenu: `IA_BuildMenu`
+In Class Defaults:
+- **Storage Capacity:** `50.0` (50 Watt-seconds of storage)
 
-**Abilities section:**
-- Interact Ability Class: `GA_Interact` (C++ class, should appear in dropdown)
+Go back to `DA_Battery` and update **Actor Class** to `BP_Battery`.
 
-Save.
+**Power system notes:**
+- Wind turbines produce 0-5W depending on wind (strong early, gusty late)
+- Solar panels produce 1-10W depending on atmosphere clarity
+- Batteries store excess power and discharge during shortfalls
+- HUD shows: demand/supply (grey=ok, amber=discharging, red=brownout), battery bar when capacity > 0
+- Brownout (demand > supply + battery) halves plot growth speed
 
----
+### 4. Starting Plots
 
-## 5. BP_KilnseedGameMode
+Drag 3x `BP_Plot` into the level by hand (south of hub, ~200 units apart). These starter plots bypass the build system. Additional plots require soil terraform progress — placeable radius expands as you deliver loamspine.
 
-Create in `Content/Kilnseed/Blueprints/`.
+### 5. Update BP_KilnseedGameMode
 
-Right-click > Blueprint Class > All Classes > search `KilnseedGameMode` > select it > name `BP_KilnseedGameMode`.
+Open `BP_KilnseedGameMode`. In Class Defaults:
 
-Double-click to open. In Class Defaults:
-- **Default Pawn Class:** `BP_KilnseedPlayer`
-- **Player State Class:** `KilnseedPlayerState` (C++ class)
-- **Game State Class:** `KilnseedGameState` (C++ class)
-- **Default Abilities:** Click + and add `GA_Interact`
+**Default Abilities** — add (in addition to existing):
+- `GA_PlaceGhost`
+- `GA_Assemble`
 
-Save.
+**Available Blueprints** — click + and add in this order:
+- `DA_Plot`
+- `DA_WindTurbine`
+- `DA_SolarPanel`
+- `DA_Battery`
+- `DA_BeeHive`
 
----
+### 6. Placement Rules
 
-## 6. Create L_MainPlanet Level
+All buildables are validated by `BuildManagerSubsystem`:
+- Min 400 UU from hub center (safe zone clear)
+- Min 200 UU from any existing station or ghost (no clipping)
+- Max 2500 UU from hub center (play area)
+- Soil-gated items (plots): radius scales with soil progress, can't build at 0%
 
-File > New Level > Empty Level. Save as `Content/Kilnseed/Maps/L_MainPlanet`.
+### 7. Test the Build System
 
-### 6a. Lighting & Sky
-
-1. **Directional Light** — Drag from Place Actors panel. Set:
-   - Rotation: (-40, -30, 0) for angled sunlight
-   - Intensity: 3.0
-   - Light Color: warm orange-ish (R:1.0, G:0.85, B:0.7)
-
-2. **Sky Atmosphere** — Place Actors > search "Sky Atmosphere" > drag into level. Defaults are fine for now (we'll make it Mars-like later by tweaking Rayleigh scattering).
-
-3. **Exponential Height Fog** — Place Actors > drag in. Set:
-   - Fog Density: 0.03
-   - Fog Inscattering Color: (R:0.6, G:0.3, B:0.2) — dusty red
-   - Fog Height Falloff: 0.5
-
-4. **SkyLight** — Place Actors > drag in. Set to "SLS Captured Scene" so it picks up the sky atmosphere.
-
-### 6b. Ground Plane
-
-For now, a simple floor to walk on:
-1. Place Actors > Basic > Cube
-2. Scale to (50, 50, 0.1) — this gives a 5000x5000cm flat surface
-3. Position at (0, 0, 0)
-4. Set material to default or a grey material
-
-(We'll replace this with a proper Landscape later.)
-
-### 6c. Safe Zone
-
-1. Drag `BP_SafeZone` from Content Browser into the level
-2. Position at (0, 0, 0) — center of the map
-3. The volume is already sized (800x800x600). Players inside won't drain O2.
-
-### 6d. Player Start
-
-1. Place Actors > Basic > Player Start
-2. Position at (0, 0, 100) — inside the safe zone so player spawns safe
-
-### 6e. Greybox Hub (optional but nice)
-
-1. Place Actors > Basic > Sphere
-2. Scale to (4, 4, 2) — hemisphere-ish shape
-3. Position at (0, 0, 0) — sits on the ground at center
-4. This visually marks the safe zone / habitat hub
+1. Press **B** to enter build mode — numbered list appears on left
+2. Press **1-4** to select a buildable, or **B** to toggle
+3. Aim at ground, press **LMB** to place
+4. Free items (plots) spawn directly. Costed items spawn as blue ghost cubes.
+5. Carry harvest crates to ghosts, **LMB** to deposit. Ghost turns green when funded.
+6. Press **E** on funded ghost to assemble — real building spawns with animated parts
+7. Wind turbine blades spin with wind, solar panel tracks the sun
+8. Build a battery — watch HUD show charge level, amber text when discharging
+9. Press **B** or **E** to exit build mode
 
 ---
 
-## 7. Project Settings
+## Bees (P4)
 
-### 7a. Default Map & GameMode
+### 1. Create DA_BeeHive
 
-Edit > Project Settings > Maps & Modes:
-- **Default GameMode:** `BP_KilnseedGameMode`
-- **Editor Startup Map:** `L_MainPlanet`
-- **Game Default Map:** `L_MainPlanet`
+In `Content/Kilnseed/Data/Blueprints/`:
 
-### 7b. Verify Enhanced Input
+Right-click > Data Asset > `BlueprintDataAsset`. Name it `DA_BeeHive`.
 
-Edit > Project Settings > Input:
-- **Default Player Input Class** should already be `EnhancedPlayerInput`
-- **Default Input Component Class** should already be `EnhancedInputComponent`
+- **Blueprint Id:** `beehive`
+- **Display Name:** `Bee Hive`
+- **Actor Class:** `BeeHiveActor` (update to `BP_BeeHive` after step 2)
+- **Resource Cost:** `2` (2 harvest crates to build)
+- **Unlock Condition:** `unlock_bees` (must purchase "Unlock Bees" at console first)
 
-(These were set when the project was created.)
+### 2. Create BP_BeeHive
+
+In `Content/Kilnseed/Blueprints/Stations/`:
+
+Right-click > Blueprint Class > All Classes > search `BeeHiveActor` > name `BP_BeeHive`.
+
+No mesh configuration needed — C++ builds the composite shape (amber house body + dark roof cone + entrance hole).
+
+In Class Defaults (optional tweaks):
+- **Max Bees:** `10` (bee slots per hive)
+- **Crates Per Bee:** `1` (crates to build each additional bee)
+
+Go back to `DA_BeeHive` and update **Actor Class** to `BP_BeeHive`.
+
+### 3. How It Works
+
+**Building the hive:**
+1. Purchase "Unlock Bees" at the colony console (requires Atmo 25%)
+2. Enter build mode, select Bee Hive (5), place it (costs 2 crates as ghost → fund → assemble)
+3. Hive spawns with 1 bee and 10 slots
+
+**Growing the colony:**
+- Carry a harvest crate to the hive, **LMB** to deposit → builds a new bee (1 crate each)
+- Prompt shows "Bees: X/10 slots | [LMB] Build Bee"
+- Hive Expansion upgrades at the console add more slots
+
+**Assigning bees:**
+- Press **E** at the hive → assigns an idle bee to the most-needed role
+- 5 roles: Pollinator, Hydrator, Harvester, Planter, Assembler
+- Bees fly to their task, work, and return to the hive
+- Each active bee draws 2W of power
+- During brownout, bees return home and idle
+
+### 4. Test Bees
+
+1. Complete Atmo Tier I (deliver 5 aerolume to terraform hub)
+2. At colony console, purchase "Unlock Bees" (2 crates)
+3. Build a hive (enter build mode, key 5, place ghost, deliver 2 crates, assemble)
+4. Hive appears with 1 bee — deliver more crates to the hive for more bees
+5. Press **E** at hive to assign bees to tasks
+6. Watch bees fly, work, and return with role-specific visual payloads
 
 ---
 
-## 8. Test It
+## Colony Console + Upgrades (P4)
 
-1. Press Play (PIE)
-2. You should spawn at the Player Start inside the safe zone
-3. WASD to move, mouse to look, space to jump, shift to sprint
-4. Walk outside the safe zone volume — O2 should start draining (check with `showdebug abilitysystem` in the console: tilde `~` key)
-5. Walk back inside — O2 should refill
-6. Stay outside until O2 hits 0 — you should die and respawn at hub after 3 seconds
+### 1. Create BP_ColonyConsole
 
-### Debug Tips
-- **Console:** `showdebug abilitysystem` — shows active GEs, attribute values, tags
-- **Console:** `show collision` — shows the safe zone volume boundaries
-- If O2 doesn't drain, check that BP_SafeZone has GE_O2Drain/Refill assigned
-- If movement doesn't work, check that BP_KilnseedPlayer has the IMC and IA_ assets assigned
-- If GA_Interact doesn't exist in dropdowns, rebuild the project first
+In `Content/Kilnseed/Blueprints/Stations/`:
+
+Right-click > Blueprint Class > All Classes > search `ColonyConsoleActor` > name `BP_ColonyConsole`.
+
+No configuration needed — C++ builds the desk + angled screen composite. Place inside the hub.
+
+### 2. Create BP_UpgradeDeposit
+
+Right-click > Blueprint Class > All Classes > search `UpgradeDepositActor` > name `BP_UpgradeDeposit`.
+
+No configuration needed. Place next to the console inside the hub.
+
+The deposit box auto-finds the console in the level.
+
+### 3. Place in Level
+
+Drag both into `L_MainPlanet`, inside the safe zone hub:
+- `BP_ColonyConsole` — central position inside the hub
+- `BP_UpgradeDeposit` — next to the console
+
+### 4. How It Works
+
+**Console** (E to interact):
+- Press **E** to cycle through available upgrades
+- Prompt shows: current upgrade name, cost, deposit progress
+
+**Deposit Box** (LMB to deposit):
+- Carry a harvest crate to the box, press **LMB** to deposit
+- Deposits count toward the console's selected upgrade
+- When fully funded, upgrade auto-applies
+
+**Progression Tree:**
+
+All upgrades are purchased with harvest crates at the deposit box. Crates spent here can't go to the terraform hub — invest in colony power vs. push terraform progress.
+
+| # | Upgrade | Cost | Requires | Effect |
+|---|---------|------|----------|--------|
+| 1 | Bee Speed I | 2 | — | Bees 50% faster |
+| 2 | Unlock Bees | 2 | Atmo 25% | Activate bee colony (3 bees) |
+| 3 | Unlock Loamspine | 3 | Atmo 25% | Amber soil plant (1x) |
+| 4 | Unlock Tidefern | 3 | Atmo 50% | Teal hydro plant (1x) |
+| 5 | Extra Bees I | 3 | Atmo 50% | 2 more bees |
+| 6 | Unlock Glowmoss | 4 | Soil 33% | Advanced atmo plant (3x) |
+| 7 | Bee Speed II | 4 | Soil 33% | Bees 50% faster again |
+| 8 | Unlock Crystalvine | 4 | Hydro 33% | Advanced soil plant (3x) |
+| 9 | Extra Bees II | 5 | Hydro 33% | 3 more bees |
+| 10 | Unlock Deepcoral | 5 | Atmo 100% + Soil 33% | Advanced hydro plant (3x) |
+| 11 | Extra Bees III | 6 | Soil 100% + Hydro 33% | 4 more bees |
+
+Locked upgrades appear grayed out with their unlock condition. Milestones fire automatically from terraform tier completions but only make upgrades *available for purchase*.
+
+### Terraform Tier Recipes
+
+Delivery is now recipe-based. Each axis has 3-4 tiers. Fulfill the recipe to advance.
+
+**Atmosphere (4 tiers):**
+| Tier | Gives | Recipe |
+|------|-------|--------|
+| I | 25% | 5x Aerolume |
+| II | 50% | 10x Aerolume + 3x Loamspine |
+| III | 75% | 8x Aerolume + 8x Glowmoss + 5x Loamspine |
+| IV | 100% | 15x Glowmoss + 8x Crystalvine + 3x Deepcoral |
+
+**Soil (3 tiers):**
+| Tier | Gives | Recipe |
+|------|-------|--------|
+| I | 33% | 5x Loamspine |
+| II | 66% | 10x Loamspine + 3x Tidefern |
+| III | 100% | 8x Loamspine + 8x Crystalvine + 5x Deepcoral |
+
+**Hydrosphere (3 tiers):**
+| Tier | Gives | Recipe |
+|------|-------|--------|
+| I | 33% | 4x Tidefern |
+| II | 66% | 8x Tidefern + 3x Aerolume |
+| III | 100% | 6x Tidefern + 8x Deepcoral + 5x Glowmoss |
+
+**Key design:** Higher tiers require cross-axis plants, forcing diversified production. T1 is achievable pre-prestige, T2 needs some colony investment, T3+ needs multiple prestige loops for efficiency. Advanced plants (3x value) are critical for managing the large quantities in later tiers.
+
+### New Plant Data Assets
+
+Create in `Content/Kilnseed/Data/Plants/`:
+
+#### DA_Glowmoss
+- Plant Id: `glowmoss` | Display Name: `Glowmoss`
+- Plant Color: (0.7, 0.9, 0.2, 1) — yellow-green
+- Growth Day Cycles: 1.0 | Water Drain: 0.033 | Pollination Window: 15
+- Plant Tag: `Seed.Plant.Glowmoss`
+
+#### DA_Crystalvine
+- Plant Id: `crystalvine` | Display Name: `Crystalvine`
+- Plant Color: (0.6, 0.3, 0.9, 1) — purple
+- Growth Day Cycles: 1.5 | Water Drain: 0.04 | Pollination Window: 15
+- Plant Tag: `Seed.Plant.Crystalvine`
+
+#### DA_Deepcoral
+- Plant Id: `deepcoral` | Display Name: `Deepcoral`
+- Plant Color: (0.9, 0.3, 0.5, 1) — pink/magenta
+- Growth Day Cycles: 2.0 | Water Drain: 0.05 | Pollination Window: 15
+- Plant Tag: `Seed.Plant.Deepcoral`
+
+Add all 6 plant data assets to `BP_SeedDispenser > Available Plants`.
 
 ---
 
-## Summary of Assets Created
+## PCG Terraform Vegetation (P3 — optional)
+
+### 1. Create the Graph
+
+In `Content/Kilnseed/PCG/`: Right-click > PCG > PCG Graph > name `PCG_TerraformVegetation`. Double-click to open the PCG Graph Editor.
+
+You'll see an **Input** node on the left and an **Output** node on the right. Build the chain below between them. Right-click empty space to add each node.
+
+### 2. Node-by-Node Setup
+
+Build this graph left-to-right. Connect the **Out** pin of each node to the **In** pin of the next unless noted otherwise.
+
+---
+
+**Node 1: Surface Sampler**
+
+Right-click > Generate > Surface Sampler.
+
+| Property | Value |
+|----------|-------|
+| Points Per Square Meter | `0.02` |
+| Point Extents | `(50, 50, 50)` |
+| Unbounded | `false` |
+
+This scatters sparse points across any landscape/surface under the actor.
+
+Connect: **Input** → **Surface Sampler**
+
+---
+
+**Node 2: Density Noise**
+
+Right-click > Point Operations > Density Noise.
+
+| Property | Value |
+|----------|-------|
+| Noise Type | Perlin |
+| Cell Size | `500` |
+| Density Function | Set (not Multiply) |
+
+This gives each point a random density between 0 and 1, creating natural variation — some areas dense, some sparse.
+
+Connect: **Surface Sampler** → **Density Noise**
+
+---
+
+**Node 3: Get Actor Property**
+
+Right-click > Properties > Get Actor Property.
+
+| Property | Value |
+|----------|-------|
+| Actor Selection | Self |
+| Property Name | `SoilProgress` |
+| Output Attribute Name | `SoilProgress` |
+
+This reads the `SoilProgress` float from the TerraformPCGActor and stores it as a per-point attribute.
+
+Connect: **Density Noise** → **Get Actor Property**
+
+---
+
+**Node 4: Attribute Operation (Scale Density by Soil)**
+
+Right-click > Point Operations > Attribute Operation.
+
+| Property | Value |
+|----------|-------|
+| Operation | Multiply |
+| Input Source 1 > Selection | Attribute — `$Density` |
+| Input Source 2 > Selection | Attribute — `SoilProgress` |
+| Output Target > Selection | Attribute — `$Density` |
+
+This multiplies each point's density by SoilProgress. At 0% soil, all densities become 0 (nothing spawns). At 100%, densities are unchanged.
+
+Connect: **Get Actor Property** → **Attribute Operation**
+
+---
+
+**Node 5: Density Filter (Cull Empty Points)**
+
+Right-click > Filter > Density Filter.
+
+| Property | Value |
+|----------|-------|
+| Lower Bound | `0.1` |
+| Upper Bound | `1.0` |
+
+Removes all points with density below 0.1 (the near-zero ones that would produce nothing).
+
+Connect: **Attribute Operation** → **Density Filter**
+
+The **Inside** pin continues the chain. The **Outside** pin is unused (culled points).
+
+---
+
+**Node 6: Bounds Modifier (Hub Exclusion)**
+
+Right-click > Spatial > Bounds Modifier.
+
+| Property | Value |
+|----------|-------|
+| Mode | Intersect |
+| Bounds Min | `(-2500, -2500, -5000)` |
+| Bounds Max | `(2500, 2500, 5000)` |
+| Invert | `false` |
+
+Then add a **second Bounds Modifier** to cut out the center:
+
+| Property | Value |
+|----------|-------|
+| Mode | Difference |
+| Bounds Min | `(-800, -800, -5000)` |
+| Bounds Max | `(800, 800, 5000)` |
+
+Alternative approach: use a **Distance** node (Spatial > Distance, Origin = (0,0,0)) followed by a **Point Filter** (Filter > Point Filter, Attribute = `$Distance`, Operator = GreaterThan, Threshold = 800). This removes points within 800 UU of the hub.
+
+Connect: **Density Filter (Inside)** → **Bounds Modifier(s)**
+
+---
+
+**Node 7: Copy Points (Split into 3 branches)**
+
+From the last node's output, drag three separate connections. Each branch will filter for a different vegetation tier.
+
+**--- Branch A: Grass (all surviving points) ---**
+
+**Node 8A: Static Mesh Spawner (Grass)**
+
+Right-click > Output > Static Mesh Spawner.
+
+| Property | Value |
+|----------|-------|
+| Mesh Entries > + Add | |
+| Mesh | `/Engine/BasicShapes/Sphere.Sphere` |
+| Scale Min | `(0.05, 0.05, 0.03)` |
+| Scale Max | `(0.08, 0.08, 0.05)` |
+| Material Override | MI_Grass (optional, see step 4) |
+
+Connect: **Bounds output** → **Static Mesh Spawner (Grass)** → **Output**
+
+**--- Branch B: Shrubs (dense areas only) ---**
+
+**Node 8B: Density Remap**
+
+Right-click > Point Operations > Density Remap.
+
+| Property | Value |
+|----------|-------|
+| In Range Min | `0.5` |
+| In Range Max | `1.0` |
+| Out Range Min | `0.0` |
+| Out Range Max | `1.0` |
+
+Points with original density < 0.5 get density 0. Points 0.5–1.0 get remapped to 0–1.
+
+**Node 9B: Density Filter**
+
+| Property | Value |
+|----------|-------|
+| Lower Bound | `0.1` |
+| Upper Bound | `1.0` |
+
+Removes the zeroed-out points.
+
+**Node 10B: Static Mesh Spawner (Shrubs)**
+
+| Property | Value |
+|----------|-------|
+| Mesh | `/Engine/BasicShapes/Sphere.Sphere` |
+| Scale Min | `(0.12, 0.12, 0.15)` |
+| Scale Max | `(0.18, 0.18, 0.22)` |
+| Material Override | MI_Shrub (optional) |
+
+Connect: **Bounds output** → **Density Remap** → **Density Filter** → **Mesh Spawner (Shrubs)** → **Output**
+
+**--- Branch C: Trees (very dense areas only) ---**
+
+**Node 8C: Density Remap**
+
+| Property | Value |
+|----------|-------|
+| In Range Min | `0.8` |
+| In Range Max | `1.0` |
+| Out Range Min | `0.0` |
+| Out Range Max | `1.0` |
+
+**Node 9C: Density Filter**
+
+| Property | Value |
+|----------|-------|
+| Lower Bound | `0.1` |
+| Upper Bound | `1.0` |
+
+**Node 10C: Static Mesh Spawner (Tree Trunk)**
+
+| Property | Value |
+|----------|-------|
+| Mesh | `/Engine/BasicShapes/Cylinder.Cylinder` |
+| Scale Min / Max | `(0.04, 0.04, 0.3)` |
+| Material Override | MI_TreeTrunk (optional) |
+
+**Node 11C: Static Mesh Spawner (Tree Canopy)**
+
+| Property | Value |
+|----------|-------|
+| Mesh | `/Engine/BasicShapes/Sphere.Sphere` |
+| Scale Min / Max | `(0.2, 0.2, 0.15)` |
+| Offset | `(0, 0, 60)` |
+| Material Override | MI_TreeCanopy (optional) |
+
+Connect: **Bounds output** → **Density Remap** → **Density Filter** → **Mesh Spawner (Trunk)** → **Output**
+
+Connect separately: **Density Filter (same one)** → **Mesh Spawner (Canopy)** → **Output**
+
+(The canopy spawner reads from the same filtered points as the trunk but places meshes higher via the offset.)
+
+---
+
+### 3. Optional: PCG_TerraformWater
+
+Create a second graph `PCG_TerraformWater` using the same pattern but:
+
+| Difference | Value |
+|------------|-------|
+| Surface Sampler density | `0.005` (very sparse) |
+| Actor Property | `HydroProgress` instead of `SoilProgress` |
+| After density filter, add a **Point Filter** | Attribute: `$Position.Z`, Operator: LessThan, Threshold: `50` (only low terrain) |
+| Single mesh spawner | Mesh: Cylinder, Scale: random `(0.5-1.5, 0.5-1.5, 0.01)` — flat discs |
+| Material | MI_Water (blue emissive) |
+
+### 4. Place TerraformPCGActor
+
+1. Place Actors > All Classes > search `TerraformPCGActor` > drag into level at **(0, 0, 0)**
+2. In Details panel, find **PCG Component**
+3. Set **Graph**: `PCG_TerraformVegetation`
+4. Set **Generation Trigger**: `Generate On Demand`
+
+The C++ actor ticks every 0.5s, reads SoilProgress/HydroProgress from TerraformManagerSubsystem, and calls Cleanup()+Generate() when progress changes by more than 5%.
+
+For water: add a second TerraformPCGActor, assign `PCG_TerraformWater`.
+
+### 5. Materials (optional but recommended)
+
+Create Material Instances in `Content/Kilnseed/Materials/`. For each, set the emissive color:
+
+| Asset | Base Color |
+|-------|-----------|
+| MI_Grass | `(0.3, 0.8, 0.2)` green |
+| MI_Shrub | `(0.2, 0.6, 0.15)` dark green |
+| MI_TreeCanopy | `(0.15, 0.5, 0.1)` deep green |
+| MI_TreeTrunk | `(0.4, 0.25, 0.1)` brown |
+| MI_Water | `(0.2, 0.4, 0.9)` blue |
+
+Assign in each Static Mesh Spawner's **Material Override** slot. Without these, meshes use default grey.
+
+---
+
+## Quick Reference — All Editor Assets
+
+### P1-P2 (already created)
 
 ```
 Content/Kilnseed/
   Input/
     IA_Move, IA_Look, IA_Jump, IA_Sprint,
-    IA_Interact, IA_PrimaryAction, IA_BuildMenu
-    IMC_Default
-  Data/Effects/
-    GE_O2Drain, GE_O2Refill
+    IA_Interact, IA_PrimaryAction, IA_BuildMenu,
+    IA_Flashlight, IMC_Default
+  Data/
+    Effects/  GE_O2Drain, GE_O2Refill, GE_PlotGrowth,
+              GE_WaterDrain, GE_SprintO2Drain
+    Plants/   DA_Aerolume, DA_Loamspine, DA_Tidefern
   Blueprints/
     BP_KilnseedGameMode
-    Player/BP_KilnseedPlayer
-    Stations/BP_SafeZone
+    Player/   BP_KilnseedPlayer
+    Stations/ BP_SafeZone, BP_Plot, BP_SeedDispenser,
+              BP_WaterReservoir, BP_TerraformHub
   Maps/
     L_MainPlanet
 ```
 
-Total: 13 assets. ~20 minutes of editor work.
-
----
----
-
-# Kilnseed P2 — Editor Setup (Farming Loop)
-
-After P1 is working (walking + O2), add these for the plant/water/harvest loop.
-
----
-
-## 1. Gameplay Effects for Plots
-
-Create in `Content/Kilnseed/Data/Effects/`.
-
-### 1a. GE_PlotGrowth
-
-Blueprint Class > GameplayEffect > name `GE_PlotGrowth`.
-
-- **Duration Policy:** Infinite
-- **Period:** 0.25
-
-**Modifier:**
-- **Attribute:** KilnseedPlotAttributeSet.GrowthProgress
-- **Modifier Op:** Add
-- **Magnitude Calculation Type:** Set By Caller
-- **Data Tag:** `Seed.Data.GrowthRate`
-
-The per-tick growth rate is computed in C++ from each plant's `GrowthSeconds` data asset field (Aerolume=25s, Loamspine=50s, Tidefern=100s).
-
-### 1b. GE_WaterDrain
-
-Blueprint Class > GameplayEffect > name `GE_WaterDrain`.
-
-- **Duration Policy:** Infinite
-- **Period:** 0.25
-
-**Modifier:**
-- **Attribute:** KilnseedPlotAttributeSet.WaterLevel
-- **Modifier Op:** Add
-- **Magnitude Calculation Type:** Set By Caller
-- **Data Tag:** `Seed.Data.WaterDrain`
-
-The per-tick drain is computed in C++ from each plant's `WaterDrainRate` data asset field.
-
----
-
-## 2. Blueprint Stations
-
-Create all in `Content/Kilnseed/Blueprints/Stations/`.
-
-### 2a. BP_Plot
-
-Blueprint Class > PlotActor > name `BP_Plot`.
-
-In Class Defaults:
-- **Growth Effect:** GE_PlotGrowth
-- **Water Drain Effect:** GE_WaterDrain
-
-In the Components panel:
-- **Mesh** (inherited): Assign a basic Cube mesh, scale to (1.5, 1.5, 0.1) — flat plot tile
-
-Plant visuals are fully procedural — **do not add a plant mesh**. The `PlantVisualComponent` builds composite shapes at runtime from basic engine primitives (spheres, cubes, cones, cylinders) based on the plant type. Each plant type has a unique multi-part silhouette with staggered growth stages and per-part emissive color variation:
-- **Aerolume** (lime): Bioluminescent cluster — stem + central bulb + orbiting pods + bloom cap
-- **Loamspine** (amber): Crystal spire — central column + radiating spike cones + crown
-- **Tidefern** (teal): Aquatic mushroom — dual stems + broad flat cap + trailing tendrils + bud orbs
-
-### 2b. BP_TerraformHub
-
-Blueprint Class > TerraformHubActor > name `BP_TerraformHub`.
-
-In the Components panel:
-- **Mesh** (inherited): Assign a Cube mesh, scale to (1.5, 1.5, 2.0) — tall box
-- **AtmoIntake** (inherited): Appears as a small box on the left — assign a Cube mesh. Set material to a lime-tinted color to indicate Atmosphere intake.
-- **SoilIntake** (inherited): Center box — assign a Cube mesh. Amber-tinted for Soil.
-- **HydroIntake** (inherited): Right box — assign a Cube mesh. Teal-tinted for Hydrosphere.
-
-No Class Defaults needed — delivery logic is fully C++. The hub accepts harvest crates via LMB and routes them to the correct terraform axis based on the crate's PlantType tag.
-
-### 2c. BP_SeedDispenser
-
-
-' '
-Blueprint Class > SeedDispenserActor > name `BP_SeedDispenser`.
-
-In Class Defaults:h
-- **Seed Pod Class:** Set to the carriable class (ACarriableBase or a BP subclass — see 2d)
-- **Available Plants:** Add entries for each plant DA asset (see step 3)
-- **Dispense Cooldown:** 5.0
-- **Power Draw:** 3.0
-
-Components:
-- **Mesh**: Assign a Cylinder mesh, scale to taste
-
-### 2d. BP_WaterReservoir
-
-Blueprint Class > WaterReservoirActor > name `BP_WaterReservoir`.
-
-Components:
-- **Mesh**: Assign a Cylinder mesh (larger, blue-tinted)
-
-### 2e. BP_SeedPod, BP_WaterCanister, BP_HarvestCrate (optional)
-
-For distinct visual items, create Blueprint subclasses of `CarriableBase`:
-- **BP_SeedPod**: Sphere mesh, small (Scale 0.15), emissive material
-- **BP_WaterCanister**: Cylinder mesh, small, blue material
-- **BP_HarvestCrate**: Cube mesh, small (Scale 0.25), emissive material
-
-Or just use the base CarriableBase — it works, just looks like a default mesh.
-
----
-
-## 3. Plant Data Assets
-
-Create in `Content/Kilnseed/Data/Plants/`.
-
-Right-click > Miscellaneous > Data Asset > pick `PlantDataAsset` for each:
-
-### DA_Aerolume
-- Plant Id: `aerolume`
-- Display Name: `Aerolume`
-- Plant Color: (0.5, 0.9, 0.2, 1) — Lime Green
-- Growth Day Cycles: 0.5 (half a day cycle)
-- Water Drain Rate: 0.033
-- Pollination Window: 15
-- Terraform Axis: (leave blank for now, used in P3)
-- Seed Dispense Cooldown: 5
-- Plant Tag: `Seed.Plant.Aerolume`
-
-### DA_Loamspine
-- Plant Id: `loamspine`
-- Display Name: `Loamspine`
-- Plant Color: (0.9, 0.6, 0.2, 1) — Amber
-- Growth Day Cycles: 1.0 (one full day cycle)
-- Water Drain Rate: 0.033
-- Pollination Window: 15
-- Plant Tag: `Seed.Plant.Loamspine`
-
-### DA_Tidefern
-- Plant Id: `tidefern`
-- Display Name: `Tidefern`
-- Plant Color: (0.2, 0.8, 0.6, 1) — Teal
-- Growth Day Cycles: 2.0 (two full day cycles)
-- Water Drain Rate: 0.033
-- Pollination Window: 15
-- Plant Tag: `Seed.Plant.Tidefern`
-
----
-
-## 4. Update BP_KilnseedGameMode
-
-Open `BP_KilnseedGameMode` and add to **Default Abilities:**
-- GA_Interact (already there from P1)
-- GA_Pickup
-- GA_Place
-- GA_Harvest
-- GA_ManualPollinate
-
----
-
-## 5. Update BP_KilnseedPlayer
-
-Open `BP_KilnseedPlayer` and set:
-- **Pickup Ability Class:** GA_Pickup
-- **Place Ability Class:** GA_Place
-- **Harvest Crate Class:** `CarriableBase` (or `BP_HarvestCrate` if you created one)
-- **IA_Flashlight:** `IA_Flashlight` (if created — see P1 extras below)
-- **Sprint Drain Effect:** `GE_SprintO2Drain` (if created — see P1 extras below)
-
----
-
-## 6. Place in Level
-
-Open `L_MainPlanet` and add:
-
-1. **3×3 Plot Grid**: Drag 9x `BP_Plot` into the level. Space them ~200 units apart in a 3×3 grid, offset ~800 units from center (south of hub).
-
-2. **Seed Dispenser**: Drag `BP_SeedDispenser` into the level. Place east of hub (~500 units). In its Details:
-   - **Seed Pod Class:** `CarriableBase` (or `BP_SeedPod` if created)
-   - **Available Plants:** Click + and add `DA_Aerolume`
-
-3. **Water Reservoir**: Drag `BP_WaterReservoir` into the level. Place west of hub. In its Details:
-   - **Water Canister Class:** `CarriableBase` (or `BP_WaterCanister` if created)
-
-4. **Terraform Hub** (optional for P2, required for P3): Drag `BP_TerraformHub` into the level. Place north of hub.
-
-5. **Day/Night Cycle**: Place Actors > All Classes > search `DayNightCycleActor` > drag into level. Defaults: 60s day, 20s night. No configuration needed — it auto-finds the Directional Light.
-
-6. **Post Process Volume**: Place Actors > Post Process Volume. Enable **Infinite Extent**. Under Exposure:
-   - Metering Mode: Manual
-   - Min EV100: 10.0
-   - Max EV100: 10.0
-
----
-
-## 7. P1 Extras (optional but recommended)
-
-These assets are created during P1 polish but not strictly required:
-
-**GE_SprintO2Drain** — Create in `Content/Kilnseed/Data/Effects/`:
-- Duration Policy: Infinite
-- Period: 0.25
-- Modifier: Attribute Based on O2DrainRate, Coefficient: -2.0
-- Assign in BP_KilnseedPlayer > Sprint Drain Effect
-
-**IA_Flashlight** — Create in `Content/Kilnseed/Input/`:
-- Value Type: Digital (Bool)
-- Add to IMC_Default: F key, no modifiers
-- Assign in BP_KilnseedPlayer > IA_Flashlight
-
----
-
-## 8. Test It
-
-### Seed → Grow → Harvest loop
-1. Walk to seed dispenser, LMB to cycle plants, E to take a seed
-2. Walk to an empty plot, LMB → plant the seed
-3. Composite plant visual grows from seed size with emissive color
-4. Prompt shows `Growing... X% | Water: Y%`
-5. At 50%, plot enters POLLINATING — pulsing light appears, prompt shows `[E] Pollinate`
-6. Press E to pollinate — growth resumes (one-time gate)
-7. At 100%, prompt shows `[E] Harvest` — press E to get an emissive harvest crate
-
-### Water loop
-1. Walk to water reservoir, press E → get a blue water canister
-2. Walk to a growing plot, LMB → waters the plot (adds 50% water)
-3. Water level shown in plot prompt
-
-### Delivery (P3 preview)
-1. Carry a harvest crate to the Terraform Hub
-2. LMB → delivers the crate, advances the terraform axis
-
----
-
-## P2 Assets Summary
+### P3 (build system + power)
 
 ```
 Content/Kilnseed/
-  Data/
-    Effects/GE_PlotGrowth, GE_WaterDrain, GE_SprintO2Drain (optional)
-    Plants/DA_Aerolume, DA_Loamspine, DA_Tidefern
   Input/
-    IA_Flashlight (optional)
-  Blueprints/Stations/
-    BP_Plot, BP_SeedDispenser, BP_WaterReservoir
+    IA_BuildSelect
+  Data/
+    Blueprints/  DA_Plot, DA_WindTurbine, DA_SolarPanel, DA_Battery
+  Blueprints/
+    Stations/    BP_WindTurbine, BP_SolarPanel, BP_Battery
+  PCG/
+    PCG_TerraformVegetation (optional)
+    PCG_TerraformWater (optional)
 ```
 
-Total: 8-10 new assets. ~15 minutes of editor work.
+### P4 (bees + upgrades)
+
+```
+Content/Kilnseed/
+  Blueprints/
+    Stations/    BP_BeeHive, BP_ColonyConsole, BP_UpgradeDeposit
+```

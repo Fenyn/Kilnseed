@@ -3,7 +3,6 @@
 #include "Items/CarriableBase.h"
 #include "Player/KilnseedPlayerCharacter.h"
 #include "Player/CarryComponent.h"
-#include "Core/PowerManagerSubsystem.h"
 #include "Multiplayer/KilnseedGameState.h"
 #include "KilnseedGameplayTags.h"
 #include "Net/UnrealNetwork.h"
@@ -11,6 +10,7 @@
 ASeedDispenserActor::ASeedDispenserActor()
 {
 	StationName = FText::FromString(TEXT("Seed Dispenser"));
+	PowerDraw = 3.0f;
 
 	DisplayMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DisplayMesh"));
 	DisplayMesh->SetupAttachment(MeshComponent);
@@ -28,29 +28,7 @@ ASeedDispenserActor::ASeedDispenserActor()
 void ASeedDispenserActor::BeginPlay()
 {
 	Super::BeginPlay();
-
 	UpdateDisplayColor();
-
-	if (HasAuthority())
-	{
-		if (UPowerManagerSubsystem* PM = GetWorld()->GetSubsystem<UPowerManagerSubsystem>())
-		{
-			PM->RegisterDemand(FName(*GetName()), PowerDraw);
-		}
-	}
-}
-
-void ASeedDispenserActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	if (HasAuthority())
-	{
-		if (UPowerManagerSubsystem* PM = GetWorld()->GetSubsystem<UPowerManagerSubsystem>())
-		{
-			PM->UnregisterDemand(FName(*GetName()));
-		}
-	}
-
-	Super::EndPlay(EndPlayReason);
 }
 
 void ASeedDispenserActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -83,7 +61,8 @@ FText ASeedDispenserActor::GetInteractPrompt_Implementation(AKilnseedPlayerChara
 
 void ASeedDispenserActor::CyclePlant()
 {
-	// Only cycle through plants that are unlocked
+	if (AvailablePlants.IsEmpty()) return;
+
 	AKilnseedGameState* GS = GetWorld()->GetGameState<AKilnseedGameState>();
 
 	int32 StartIndex = CurrentPlantIndex;
@@ -124,6 +103,13 @@ void ASeedDispenserActor::DispenseSeed(AKilnseedPlayerCharacter* Player)
 		Seed->SetItemColor(Plant->PlantColor);
 		Player->CarryComponent->PickupItem(Seed);
 	}
+}
+
+UPlantDataAsset* ASeedDispenserActor::GetSelectedPlant() const
+{
+	if (AvailablePlants.IsValidIndex(CurrentPlantIndex))
+		return AvailablePlants[CurrentPlantIndex];
+	return nullptr;
 }
 
 void ASeedDispenserActor::UpdateDisplayColor()

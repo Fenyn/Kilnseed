@@ -26,18 +26,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Dispenser")
 	float DispenseCooldown = 5.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Dispenser")
-	float PowerDraw = 3.0f;
-
 	void Interact_Implementation(AKilnseedPlayerCharacter* Player) override;
 	FText GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const override;
 
 	void DispenseSeed(AKilnseedPlayerCharacter* Player);
 	void CyclePlant();
+	UPlantDataAsset* GetSelectedPlant() const;
 
 protected:
 	void BeginPlay() override;
-	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
 	UPROPERTY(Replicated)

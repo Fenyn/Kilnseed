@@ -8,6 +8,7 @@
 #include "Player/CarryComponent.h"
 #include "Core/PlotManagerSubsystem.h"
 #include "Core/EventBusSubsystem.h"
+#include "Core/PowerManagerSubsystem.h"
 #include "KilnseedGameplayTags.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -54,6 +55,33 @@ void APlotActor::BeginPlay()
 	{
 		PM->RegisterPlot(this);
 	}
+
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnBrownoutStarted.AddDynamic(this, &APlotActor::OnBrownoutStarted);
+		EB->OnBrownoutEnded.AddDynamic(this, &APlotActor::OnBrownoutEnded);
+	}
+
+	if (UPowerManagerSubsystem* Power = GetWorld()->GetSubsystem<UPowerManagerSubsystem>())
+	{
+		bInBrownout = Power->IsBrownout();
+	}
+}
+
+void APlotActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnBrownoutStarted.RemoveDynamic(this, &APlotActor::OnBrownoutStarted);
+		EB->OnBrownoutEnded.RemoveDynamic(this, &APlotActor::OnBrownoutEnded);
+	}
+
+	if (UPlotManagerSubsystem* PM = GetWorld()->GetSubsystem<UPlotManagerSubsystem>())
+	{
+		PM->UnregisterPlot(this);
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void APlotActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -76,12 +104,38 @@ void APlotActor::ApplyGrowthEffect()
 	if (!GrowthEffect || ActiveGrowthHandle.IsValid()) return;
 
 	constexpr float Period = 0.25f;
+	float Rate = Period / GetGrowthSeconds();
+	if (bInBrownout) Rate *= 0.5f;
+
 	FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(GrowthEffect, 1.0f, AbilitySystemComponent->MakeEffectContext());
 	if (Spec.IsValid())
 	{
-		Spec.Data->SetSetByCallerMagnitude(KilnseedTags::Data_GrowthRate, Period / GetGrowthSeconds());
+		Spec.Data->SetSetByCallerMagnitude(KilnseedTags::Data_GrowthRate, Rate);
 		ActiveGrowthHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	}
+}
+
+void APlotActor::OnBrownoutStarted()
+{
+	bInBrownout = true;
+	RefreshGrowthRate();
+}
+
+void APlotActor::OnBrownoutEnded()
+{
+	bInBrownout = false;
+	RefreshGrowthRate();
+}
+
+void APlotActor::RefreshGrowthRate()
+{
+	if (!HasAuthority()) return;
+	if (CurrentState != KilnseedTags::Plot_Growing) return;
+	if (!ActiveGrowthHandle.IsValid()) return;
+
+	AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGrowthHandle);
+	ActiveGrowthHandle.Invalidate();
+	ApplyGrowthEffect();
 }
 
 void APlotActor::SetState(FGameplayTag NewState)
@@ -138,7 +192,7 @@ void APlotActor::PlantSeed(FGameplayTag InPlantTag, const UPlantDataAsset* Data)
 		}
 	}
 
-	if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
 		EB->OnSeedPlanted.Broadcast(this, PlantedTag.GetTagName());
 	}
@@ -151,7 +205,7 @@ void APlotActor::ApplyWater(float Amount)
 	float NewLevel = FMath::Clamp(PlotAttributes->GetWaterLevel() + Amount, 0.0f, 1.0f);
 	PlotAttributes->SetWaterLevel(NewLevel);
 
-	if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
 		EB->OnWaterApplied.Broadcast(this, Amount);
 	}
@@ -166,7 +220,7 @@ void APlotActor::Pollinate()
 
 	ApplyGrowthEffect();
 
-	if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
 		EB->OnPlantPollinated.Broadcast(this);
 	}
@@ -178,7 +232,7 @@ void APlotActor::Harvest()
 
 	FName HarvestedType = PlantedTag.GetTagName();
 
-	if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
 		EB->OnPlantHarvested.Broadcast(this, HarvestedType);
 	}
@@ -224,7 +278,7 @@ void APlotActor::CheckGrowthThresholds()
 		if (ActiveWaterDrainHandle.IsValid())
 			AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveWaterDrainHandle);
 
-		if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+		if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 		{
 			EB->OnPlantBloomed.Broadcast(this);
 		}
@@ -240,7 +294,7 @@ void APlotActor::CheckGrowthThresholds()
 
 		SetState(KilnseedTags::Plot_Pollinating);
 
-		if (UEventBusSubsystem* EB = GetGameInstance()->GetSubsystem<UEventBusSubsystem>())
+		if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 		{
 			EB->OnPollinationWindowOpened.Broadcast(this);
 		}

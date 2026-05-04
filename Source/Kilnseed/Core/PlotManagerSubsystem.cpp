@@ -6,17 +6,19 @@ void UPlotManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	if (UGameInstance* GI = GetWorld()->GetGameInstance())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
-		if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-		{
-			EventBus->OnTickFired.AddDynamic(this, &UPlotManagerSubsystem::OnTickFired);
-		}
+		EB->OnTickFired.AddDynamic(this, &UPlotManagerSubsystem::OnTickFired);
 	}
 }
 
 void UPlotManagerSubsystem::Deinitialize()
 {
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnTickFired.RemoveDynamic(this, &UPlotManagerSubsystem::OnTickFired);
+	}
+
 	RegisteredPlots.Empty();
 	Super::Deinitialize();
 }

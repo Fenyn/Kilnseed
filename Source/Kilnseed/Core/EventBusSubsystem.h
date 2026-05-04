@@ -36,6 +36,15 @@ class KILNSEED_API UEventBusSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	static UEventBusSubsystem* Get(const UObject* WorldContext)
+	{
+		if (!WorldContext) return nullptr;
+		UWorld* World = WorldContext->GetWorld();
+		if (!World) return nullptr;
+		UGameInstance* GI = World->GetGameInstance();
+		return GI ? GI->GetSubsystem<UEventBusSubsystem>() : nullptr;
+	}
+
 	UPROPERTY(BlueprintAssignable) FOnSeedPlanted OnSeedPlanted;
 	UPROPERTY(BlueprintAssignable) FOnWaterApplied OnWaterApplied;
 	UPROPERTY(BlueprintAssignable) FOnPollinationWindowOpened OnPollinationWindowOpened;

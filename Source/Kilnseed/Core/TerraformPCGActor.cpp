@@ -1,5 +1,6 @@
 #include "Core/TerraformPCGActor.h"
 #include "Core/TerraformManagerSubsystem.h"
+#include "KilnseedGameplayTags.h"
 #include "PCGComponent.h"
 
 ATerraformPCGActor::ATerraformPCGActor()
@@ -23,8 +24,8 @@ void ATerraformPCGActor::Tick(float DeltaTime)
 	UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>();
 	if (!TM) return;
 
-	float NewSoil = TM->GetAxisPercent(FName("soil"));
-	float NewHydro = TM->GetAxisPercent(FName("hydrosphere"));
+	float NewSoil = TM->GetAxisPercent(KilnseedAxes::Soil);
+	float NewHydro = TM->GetAxisPercent(KilnseedAxes::Hydrosphere);
 
 	bool bNeedsRegen = false;
 

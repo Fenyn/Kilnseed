@@ -2,13 +2,13 @@
 #include "Items/CarriableBase.h"
 #include "Player/KilnseedPlayerCharacter.h"
 #include "Player/CarryComponent.h"
-#include "Core/PowerManagerSubsystem.h"
 #include "KilnseedGameplayTags.h"
 #include "Components/StaticMeshComponent.h"
 
 AWaterReservoirActor::AWaterReservoirActor()
 {
 	StationName = FText::FromString(TEXT("Water Reservoir"));
+	PowerDraw = 3.0f;
 
 	DisplayMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DisplayMesh"));
 	DisplayMesh->SetupAttachment(MeshComponent);
@@ -32,27 +32,6 @@ void AWaterReservoirActor::BeginPlay()
 	{
 		DisplayMesh->SetMaterial(0, MID);
 	}
-
-	if (HasAuthority())
-	{
-		if (UPowerManagerSubsystem* PM = GetWorld()->GetSubsystem<UPowerManagerSubsystem>())
-		{
-			PM->RegisterDemand(FName(*GetName()), PowerDraw);
-		}
-	}
-}
-
-void AWaterReservoirActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	if (HasAuthority())
-	{
-		if (UPowerManagerSubsystem* PM = GetWorld()->GetSubsystem<UPowerManagerSubsystem>())
-		{
-			PM->UnregisterDemand(FName(*GetName()));
-		}
-	}
-
-	Super::EndPlay(EndPlayReason);
 }
 
 void AWaterReservoirActor::Interact_Implementation(AKilnseedPlayerCharacter* Player)

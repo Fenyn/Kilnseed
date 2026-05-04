@@ -6,6 +6,12 @@
 #include "Stations/SeedDispenserActor.h"
 #include "GAS/Abilities/GA_Harvest.h"
 #include "GAS/Abilities/GA_ManualPollinate.h"
+#include "GAS/Abilities/GA_PlaceGhost.h"
+#include "GAS/Abilities/GA_Assemble.h"
+#include "Data/BlueprintDataAsset.h"
+#include "Stations/ColonyConsoleActor.h"
+#include "Player/KilnseedHUD.h"
+#include "Kismet/GameplayStatics.h"
 #include "GAS/KilnseedAbilitySystemComponent.h"
 #include "GAS/KilnseedPlayerAttributeSet.h"
 #include "Camera/CameraComponent.h"
@@ -171,17 +177,20 @@ void AKilnseedPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInput->BindAction(IA_Sprint, ETriggerEvent::Completed, this, &AKilnseedPlayerCharacter::HandleSprintStop);
 	}
 	if (IA_Interact)
-		EnhancedInput->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AKilnseedPlayerCharacter::HandleInteract);
+		EnhancedInput->BindAction(IA_Interact, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandleInteract);
 	if (IA_PrimaryAction)
-		EnhancedInput->BindAction(IA_PrimaryAction, ETriggerEvent::Triggered, this, &AKilnseedPlayerCharacter::HandlePrimaryAction);
+		EnhancedInput->BindAction(IA_PrimaryAction, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandlePrimaryAction);
 	if (IA_BuildMenu)
-		EnhancedInput->BindAction(IA_BuildMenu, ETriggerEvent::Triggered, this, &AKilnseedPlayerCharacter::HandleBuildMenu);
+		EnhancedInput->BindAction(IA_BuildMenu, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandleBuildMenu);
+	if (IA_BuildSelect)
+		EnhancedInput->BindAction(IA_BuildSelect, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandleBuildSelect);
 	if (IA_Flashlight)
 		EnhancedInput->BindAction(IA_Flashlight, ETriggerEvent::Started, this, &AKilnseedPlayerCharacter::HandleFlashlight);
 }
 
 void AKilnseedPlayerCharacter::HandleMove(const FInputActionValue& Value)
 {
+	if (bInConsoleMode) return;
 	const FVector2D MoveInput = Value.Get<FVector2D>();
 	const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
 	const FVector ForwardDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
@@ -193,6 +202,7 @@ void AKilnseedPlayerCharacter::HandleMove(const FInputActionValue& Value)
 
 void AKilnseedPlayerCharacter::HandleLook(const FInputActionValue& Value)
 {
+	if (bInConsoleMode) return;
 	const FVector2D LookInput = Value.Get<FVector2D>();
 	const float Sensitivity = CVarLookSensitivity.GetValueOnGameThread();
 	AddControllerYawInput(LookInput.X * Sensitivity);
@@ -241,11 +251,23 @@ void AKilnseedPlayerCharacter::HandleSprintStop()
 
 void AKilnseedPlayerCharacter::HandleInteract()
 {
+	if (bInConsoleMode)
+	{
+		ExitConsoleMode();
+		return;
+	}
+	if (bInBuildMode)
+	{
+		ExitBuildMode();
+		return;
+	}
+
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	if (!ASC) return;
 
 	if (ASC->TryActivateAbilityByClass(UGA_Harvest::StaticClass())) return;
 	if (ASC->TryActivateAbilityByClass(UGA_ManualPollinate::StaticClass())) return;
+	if (ASC->TryActivateAbilityByClass(UGA_Assemble::StaticClass())) return;
 
 	if (InteractAbilityClass)
 		ASC->TryActivateAbilityByClass(InteractAbilityClass);
@@ -253,8 +275,29 @@ void AKilnseedPlayerCharacter::HandleInteract()
 
 void AKilnseedPlayerCharacter::HandlePrimaryAction()
 {
+	if (bInConsoleMode)
+	{
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		if (PC)
+		{
+			if (AKilnseedHUD* HUD = Cast<AKilnseedHUD>(PC->GetHUD()))
+			{
+				int32 Index = HUD->GetUpgradeIndexAtCursor();
+				if (Index >= 0)
+					SelectConsoleUpgrade(Index);
+			}
+		}
+		return;
+	}
+
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	if (!ASC) return;
+
+	if (bInBuildMode)
+	{
+		ASC->TryActivateAbilityByClass(UGA_PlaceGhost::StaticClass());
+		return;
+	}
 
 	if (CarryComponent->IsCarrying())
 	{
@@ -279,7 +322,120 @@ void AKilnseedPlayerCharacter::HandlePrimaryAction()
 
 void AKilnseedPlayerCharacter::HandleBuildMenu()
 {
-	// Will activate GA_EnterBuildMode via ASC in P3
+	if (bInConsoleMode) return;
+
+	if (bInBuildMode)
+		ExitBuildMode();
+	else
+		EnterBuildMode();
+}
+
+void AKilnseedPlayerCharacter::HandleBuildSelect(const FInputActionValue& Value)
+{
+	int32 Slot = FMath::RoundToInt(Value.Get<float>()) - 1;
+
+	if (bInConsoleMode)
+	{
+		SelectConsoleUpgrade(Slot);
+		return;
+	}
+
+	SelectBlueprint(Slot);
+}
+
+void AKilnseedPlayerCharacter::EnterBuildMode()
+{
+	if (CarryComponent->IsCarrying()) return;
+
+	AKilnseedGameMode* GM = GetWorld()->GetAuthGameMode<AKilnseedGameMode>();
+	if (!GM || GM->AvailableBlueprints.IsEmpty()) return;
+
+	// Find first unlocked blueprint
+	for (int32 i = 0; i < GM->AvailableBlueprints.Num(); i++)
+	{
+		if (IsBlueprintUnlocked(GM->AvailableBlueprints[i]))
+		{
+			bInBuildMode = true;
+			CurrentBlueprintIndex = i;
+			return;
+		}
+	}
+}
+
+void AKilnseedPlayerCharacter::SelectBlueprint(int32 Index)
+{
+	if (CarryComponent->IsCarrying()) return;
+
+	AKilnseedGameMode* GM = GetWorld()->GetAuthGameMode<AKilnseedGameMode>();
+	if (!GM || !GM->AvailableBlueprints.IsValidIndex(Index)) return;
+	if (!IsBlueprintUnlocked(GM->AvailableBlueprints[Index])) return;
+
+	bInBuildMode = true;
+	CurrentBlueprintIndex = Index;
+}
+
+bool AKilnseedPlayerCharacter::IsBlueprintUnlocked(const UBlueprintDataAsset* BP) const
+{
+	if (!BP || BP->UnlockCondition.IsNone()) return true;
+
+	TArray<AActor*> Consoles;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AColonyConsoleActor::StaticClass(), Consoles);
+	for (AActor* Actor : Consoles)
+	{
+		if (AColonyConsoleActor* Console = Cast<AColonyConsoleActor>(Actor))
+		{
+			if (Console->IsUpgradeCompleted(BP->UnlockCondition))
+				return true;
+		}
+	}
+	return false;
+}
+
+void AKilnseedPlayerCharacter::ExitBuildMode()
+{
+	bInBuildMode = false;
+	CurrentBlueprintIndex = 0;
+}
+
+UBlueprintDataAsset* AKilnseedPlayerCharacter::GetCurrentBlueprint() const
+{
+	AKilnseedGameMode* GM = GetWorld()->GetAuthGameMode<AKilnseedGameMode>();
+	if (!GM || !GM->AvailableBlueprints.IsValidIndex(CurrentBlueprintIndex))
+		return nullptr;
+	return GM->AvailableBlueprints[CurrentBlueprintIndex];
+}
+
+void AKilnseedPlayerCharacter::EnterConsoleMode(AColonyConsoleActor* Console)
+{
+	if (bInBuildMode) return;
+	bInConsoleMode = true;
+	ActiveConsole = Console;
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetShowMouseCursor(true);
+		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+	}
+}
+
+void AKilnseedPlayerCharacter::ExitConsoleMode()
+{
+	bInConsoleMode = false;
+	ActiveConsole = nullptr;
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetShowMouseCursor(false);
+		PC->SetInputMode(FInputModeGameOnly());
+	}
+}
+
+void AKilnseedPlayerCharacter::SelectConsoleUpgrade(int32 Index)
+{
+	if (ActiveConsole)
+	{
+		ActiveConsole->SelectUpgrade(Index);
+	}
 }
 
 void AKilnseedPlayerCharacter::HandleFlashlight()

@@ -16,9 +16,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Reservoir")
 	TSubclassOf<ACarriableBase> WaterCanisterClass;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Reservoir")
-	float PowerDraw = 3.0f;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Reservoir")
 	TObjectPtr<UStaticMeshComponent> DisplayMesh;
 
@@ -29,7 +26,6 @@ public:
 
 protected:
 	void BeginPlay() override;
-	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
 	void DispenseWater(AKilnseedPlayerCharacter* Player);

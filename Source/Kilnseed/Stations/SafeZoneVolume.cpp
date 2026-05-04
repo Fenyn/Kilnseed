@@ -49,13 +49,13 @@ void ASafeZoneVolume::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor
 		}
 	}
 
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnSafeZoneEntered.Broadcast(OtherActor);
+		EB->OnAutosaveTriggered.Broadcast();
+	}
 	if (UGameInstance* GI = GetGameInstance())
 	{
-		if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-		{
-			EventBus->OnSafeZoneEntered.Broadcast(OtherActor);
-			EventBus->OnAutosaveTriggered.Broadcast();
-		}
 		if (UGameStateSubsystem* GSS = GI->GetSubsystem<UGameStateSubsystem>())
 		{
 			GSS->Autosave();
@@ -90,11 +90,8 @@ void ASafeZoneVolume::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* 
 		}
 	}
 
-	if (UGameInstance* GI = GetGameInstance())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
-		if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-		{
-			EventBus->OnSafeZoneExited.Broadcast(OtherActor);
-		}
+		EB->OnSafeZoneExited.Broadcast(OtherActor);
 	}
 }

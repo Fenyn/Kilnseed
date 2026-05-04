@@ -1,9 +1,11 @@
 #include "Core/MilestoneManagerSubsystem.h"
 #include "Core/EventBusSubsystem.h"
+#include "Core/TerraformManagerSubsystem.h"
 #include "Core/WorldProgressorSubsystem.h"
 #include "Data/MilestoneDataAsset.h"
 #include "Multiplayer/KilnseedGameState.h"
 #include "Multiplayer/KilnseedGameMode.h"
+#include "KilnseedGameplayTags.h"
 
 static UMilestoneDataAsset* CreateMilestone(UObject* Outer, FName Id, FText Name,
 	FName Axis, int32 Count, EMilestoneRewardType Reward, FName Target = NAME_None)
@@ -23,33 +25,41 @@ void UMilestoneManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection
 {
 	Super::Initialize(Collection);
 
-	// Atmosphere milestones (aerolume deliveries)
+	// Milestones fire at axis percentage thresholds (ConditionValue = percent)
+	// Atmo: 4 tiers → T1=25%, T2=50%, T3=75%, T4=100%
 	RegisterMilestone(CreateMilestone(this, "atmo25", FText::FromString("Atmo 25%"),
-		"atmosphere", 2, EMilestoneRewardType::UnlockPlant, "loamspine"));
+		KilnseedAxes::Atmosphere, 25, EMilestoneRewardType::UnlockPlant));
 	RegisterMilestone(CreateMilestone(this, "atmo50", FText::FromString("Atmo 50%"),
-		"atmosphere", 4, EMilestoneRewardType::UnlockPlant, "tidefern"));
+		KilnseedAxes::Atmosphere, 50, EMilestoneRewardType::UnlockPlant));
 	RegisterMilestone(CreateMilestone(this, "atmo100", FText::FromString("Atmo 100%"),
-		"atmosphere", 7, EMilestoneRewardType::RetireO2));
+		KilnseedAxes::Atmosphere, 100, EMilestoneRewardType::RetireO2));
 
-	// Soil milestones (loamspine deliveries)
+	// Soil: 3 tiers → T1=33%, T2=66%, T3=100%
 	RegisterMilestone(CreateMilestone(this, "soil33", FText::FromString("Soil 33%"),
-		"soil", 1, EMilestoneRewardType::WorldTransform));
+		KilnseedAxes::Soil, 33, EMilestoneRewardType::WorldTransform));
 	RegisterMilestone(CreateMilestone(this, "soil100", FText::FromString("Soil 100%"),
-		"soil", 4, EMilestoneRewardType::WorldTransform));
+		KilnseedAxes::Soil, 100, EMilestoneRewardType::WorldTransform));
 
-	// Hydro milestones (tidefern deliveries)
+	// Hydro: 3 tiers → T1=33%, T2=66%, T3=100%
 	RegisterMilestone(CreateMilestone(this, "hydro33", FText::FromString("Hydro 33%"),
-		"hydrosphere", 1, EMilestoneRewardType::WorldTransform));
+		KilnseedAxes::Hydrosphere, 33, EMilestoneRewardType::WorldTransform));
 	RegisterMilestone(CreateMilestone(this, "hydro100", FText::FromString("Hydro 100%"),
-		"hydrosphere", 2, EMilestoneRewardType::Win));
+		KilnseedAxes::Hydrosphere, 100, EMilestoneRewardType::Win));
 
-	if (UGameInstance* GI = GetWorld()->GetGameInstance())
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 	{
-		if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-		{
-			EventBus->OnDeliveryReceived.AddDynamic(this, &UMilestoneManagerSubsystem::OnDeliveryReceived);
-		}
+		EB->OnDeliveryReceived.AddDynamic(this, &UMilestoneManagerSubsystem::OnDeliveryReceived);
 	}
+}
+
+void UMilestoneManagerSubsystem::Deinitialize()
+{
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnDeliveryReceived.RemoveDynamic(this, &UMilestoneManagerSubsystem::OnDeliveryReceived);
+	}
+
+	Super::Deinitialize();
 }
 
 void UMilestoneManagerSubsystem::RegisterMilestone(UMilestoneDataAsset* Milestone)
@@ -80,12 +90,9 @@ void UMilestoneManagerSubsystem::CheckMilestones()
 			GS->EarnedMilestones.Add(Milestone->MilestoneId);
 			DispatchReward(Milestone);
 
-			if (UGameInstance* GI = GetWorld()->GetGameInstance())
+			if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 			{
-				if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-				{
-					EventBus->OnMilestoneReached.Broadcast(Milestone->MilestoneId);
-				}
+				EB->OnMilestoneReached.Broadcast(Milestone->MilestoneId);
 			}
 		}
 	}
@@ -93,22 +100,13 @@ void UMilestoneManagerSubsystem::CheckMilestones()
 
 bool UMilestoneManagerSubsystem::EvaluateCondition(const UMilestoneDataAsset* Milestone) const
 {
-	AKilnseedGameState* GS = GetWorld()->GetGameState<AKilnseedGameState>();
-	AKilnseedGameMode* GM = Cast<AKilnseedGameMode>(GetWorld()->GetAuthGameMode());
-	if (!GS || !GM) return false;
-
 	if (Milestone->ConditionType == EMilestoneConditionType::DeliveryCount)
 	{
-		int32 Delivered = 0;
-		if (Milestone->ConditionAxis == FName("atmosphere"))
-			Delivered = GS->AtmosphereDelivered;
-		else if (Milestone->ConditionAxis == FName("soil"))
-			Delivered = GS->SoilDelivered;
-		else if (Milestone->ConditionAxis == FName("hydrosphere"))
-			Delivered = GS->HydroDelivered;
+		UTerraformManagerSubsystem* TM = GetWorld()->GetSubsystem<UTerraformManagerSubsystem>();
+		if (!TM) return false;
 
-		int32 ScaledTarget = Milestone->ConditionValue * GS->PlayerCountAtStart;
-		return Delivered >= ScaledTarget;
+		float Percent = TM->GetAxisPercent(Milestone->ConditionAxis) * 100.0f;
+		return Percent >= (float)Milestone->ConditionValue;
 	}
 
 	return false;
@@ -122,19 +120,8 @@ void UMilestoneManagerSubsystem::DispatchReward(const UMilestoneDataAsset* Miles
 	switch (Milestone->RewardType)
 	{
 	case EMilestoneRewardType::UnlockPlant:
-		if (!GS->PlantsUnlocked.Contains(Milestone->RewardTarget))
-		{
-			GS->PlantsUnlocked.Add(Milestone->RewardTarget);
-			if (UGameInstance* GI = GetWorld()->GetGameInstance())
-			{
-				if (UEventBusSubsystem* EB = GI->GetSubsystem<UEventBusSubsystem>())
-					EB->OnPlantUnlocked.Broadcast(Milestone->RewardTarget);
-			}
-		}
-		break;
-
 	case EMilestoneRewardType::UnlockBees:
-		// BeeManagerSubsystem will listen for this milestone and spawn initial bees
+		// Handled by ColonyConsoleActor — milestone just unlocks the purchase option
 		break;
 
 	case EMilestoneRewardType::WorldTransform:
@@ -149,10 +136,9 @@ void UMilestoneManagerSubsystem::DispatchReward(const UMilestoneDataAsset* Miles
 		break;
 
 	case EMilestoneRewardType::Win:
-		if (UGameInstance* GI = GetWorld()->GetGameInstance())
+		if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 		{
-			if (UEventBusSubsystem* EB = GI->GetSubsystem<UEventBusSubsystem>())
-				EB->OnGameWon.Broadcast();
+			EB->OnGameWon.Broadcast();
 		}
 		GS->bSandboxMode = true;
 		break;

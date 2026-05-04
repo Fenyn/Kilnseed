@@ -29,6 +29,15 @@ public:
 	bool ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player) override { return false; }
 
 protected:
+	void BeginPlay() override;
+	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Station")
 	FText StationName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Power")
+	float PowerDraw = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Power")
+	float PowerSupply = 0.0f;
 };

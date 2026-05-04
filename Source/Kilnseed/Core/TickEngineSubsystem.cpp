@@ -11,12 +11,9 @@ void UTickEngineSubsystem::Tick(float DeltaTime)
 		Accumulator -= TICK_INTERVAL;
 		TickCount++;
 
-		if (UGameInstance* GI = GetWorld()->GetGameInstance())
+		if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
 		{
-			if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-			{
-				EventBus->OnTickFired.Broadcast(TickCount);
-			}
+			EB->OnTickFired.Broadcast(TickCount);
 		}
 	}
 }

@@ -91,6 +91,63 @@ TArray<UPlantVisualComponent::FPartDef> UPlantVisualComponent::GetTidefernDef()
 	};
 }
 
+TArray<UPlantVisualComponent::FPartDef> UPlantVisualComponent::GetGlowmossDef()
+{
+	// Low cluster of glowing mushroom caps — ground-hugging, wide spread
+	return {
+		// Central pad
+		{ MeshSphere,   FVector(0, 0, 4),      FVector(0.18f, 0.18f, 0.06f), FRotator::ZeroRotator, 0.0f, 0.0f, 1.0f },
+		// Surrounding mushroom caps
+		{ MeshSphere,   FVector(12, 6, 6),     FVector(0.10f, 0.10f, 0.05f), FRotator::ZeroRotator, 0.15f, 0.04f, 1.3f },
+		{ MeshSphere,   FVector(-10, 8, 5),    FVector(0.12f, 0.12f, 0.04f), FRotator::ZeroRotator, 0.2f, -0.03f, 1.1f },
+		{ MeshSphere,   FVector(-6, -12, 7),   FVector(0.09f, 0.09f, 0.05f), FRotator::ZeroRotator, 0.25f, 0.05f, 1.4f },
+		{ MeshSphere,   FVector(8, -10, 5),    FVector(0.11f, 0.11f, 0.04f), FRotator::ZeroRotator, 0.3f, -0.02f, 1.2f },
+		// Tiny spore stalks
+		{ MeshCylinder, FVector(5, 14, 3),     FVector(0.01f, 0.01f, 0.06f), FRotator::ZeroRotator, 0.4f, 0.06f, 0.8f },
+		{ MeshCylinder, FVector(-14, -4, 3),   FVector(0.01f, 0.01f, 0.05f), FRotator::ZeroRotator, 0.45f, -0.04f, 0.7f },
+		// Top glow cap
+		{ MeshSphere,   FVector(0, 0, 12),     FVector(0.14f, 0.14f, 0.08f), FRotator::ZeroRotator, 0.6f, 0.08f, 1.8f },
+	};
+}
+
+TArray<UPlantVisualComponent::FPartDef> UPlantVisualComponent::GetCrystalvineDef()
+{
+	// Angular crystal lattice — sharp intersecting cubes with purple hue
+	return {
+		// Base anchor
+		{ MeshCube,     FVector(0, 0, 5),      FVector(0.06f, 0.06f, 0.10f), FRotator::ZeroRotator, 0.0f, 0.0f, 0.7f },
+		// Primary crystal spires
+		{ MeshCube,     FVector(3, 2, 20),     FVector(0.03f, 0.03f, 0.30f), FRotator(10, 15, 5),   0.1f, 0.03f, 1.2f },
+		{ MeshCube,     FVector(-4, 3, 18),    FVector(0.025f, 0.025f, 0.25f), FRotator(-8, 60, -10), 0.15f, -0.04f, 1.0f },
+		{ MeshCube,     FVector(2, -5, 22),    FVector(0.03f, 0.03f, 0.28f), FRotator(5, 130, 8),   0.2f, 0.05f, 1.3f },
+		// Cross-bracing shards
+		{ MeshCube,     FVector(8, 0, 14),     FVector(0.015f, 0.015f, 0.14f), FRotator(0, 0, 40),  0.35f, -0.06f, 0.9f },
+		{ MeshCube,     FVector(-6, -6, 12),   FVector(0.015f, 0.015f, 0.12f), FRotator(0, 90, -35), 0.4f, 0.04f, 0.8f },
+		// Crown facets
+		{ MeshCube,     FVector(0, 0, 30),     FVector(0.04f, 0.04f, 0.08f), FRotator(20, 45, 20),  0.55f, 0.07f, 1.6f },
+		{ MeshCube,     FVector(2, -2, 32),    FVector(0.02f, 0.02f, 0.05f), FRotator(-15, 75, -10), 0.65f, -0.05f, 1.9f },
+	};
+}
+
+TArray<UPlantVisualComponent::FPartDef> UPlantVisualComponent::GetDeepcoralDef()
+{
+	// Branching coral structure — organic curves, broad canopy
+	return {
+		// Central trunk
+		{ MeshCylinder, FVector(0, 0, 10),     FVector(0.06f, 0.06f, 0.18f), FRotator::ZeroRotator, 0.0f, 0.0f, 0.8f },
+		// Branch arms
+		{ MeshCylinder, FVector(10, 0, 18),    FVector(0.03f, 0.03f, 0.12f), FRotator(0, 0, -30),   0.15f, 0.04f, 1.0f },
+		{ MeshCylinder, FVector(-8, 8, 16),    FVector(0.025f, 0.025f, 0.10f), FRotator(0, 120, -25), 0.2f, -0.03f, 0.9f },
+		{ MeshCylinder, FVector(-6, -10, 17),  FVector(0.03f, 0.03f, 0.11f), FRotator(0, 240, -35), 0.25f, 0.05f, 1.1f },
+		// Branch tips — bulbous ends
+		{ MeshSphere,   FVector(16, 0, 26),    FVector(0.08f), FRotator::ZeroRotator,                 0.4f, 0.06f, 1.4f },
+		{ MeshSphere,   FVector(-14, 12, 24),  FVector(0.07f), FRotator::ZeroRotator,                 0.45f, -0.04f, 1.3f },
+		{ MeshSphere,   FVector(-10, -16, 25), FVector(0.09f), FRotator::ZeroRotator,                 0.5f, 0.03f, 1.5f },
+		// Crown polyps
+		{ MeshSphere,   FVector(0, 0, 28),     FVector(0.12f, 0.12f, 0.06f), FRotator::ZeroRotator,  0.6f, 0.08f, 1.7f },
+	};
+}
+
 void UPlantVisualComponent::BuildPlantVisual(FName PlantId, FLinearColor Color)
 {
 	ClearVisual();
@@ -103,6 +160,12 @@ void UPlantVisualComponent::BuildPlantVisual(FName PlantId, FLinearColor Color)
 		Defs = GetLoamspineDef();
 	else if (Id.Contains(TEXT("tidefern")))
 		Defs = GetTidefernDef();
+	else if (Id.Contains(TEXT("glowmoss")))
+		Defs = GetGlowmossDef();
+	else if (Id.Contains(TEXT("crystalvine")))
+		Defs = GetCrystalvineDef();
+	else if (Id.Contains(TEXT("deepcoral")))
+		Defs = GetDeepcoralDef();
 	else
 		Defs = GetAerolumeDef();
 

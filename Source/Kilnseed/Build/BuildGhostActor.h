@@ -30,6 +30,12 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Ghost")
 	float AssemblyProgress = 0.0f;
 
+	void InitializeGhost();
+	void CompleteAssembly();
+
+	bool CanInteract_Implementation(AKilnseedPlayerCharacter* Player) const override;
+	void Interact_Implementation(AKilnseedPlayerCharacter* Player) override {}
+	FText GetInteractPrompt_Implementation(AKilnseedPlayerCharacter* Player) const override;
 	bool CanReceiveItem_Implementation(ACarriableBase* Item) const override;
 	bool ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player) override;
 

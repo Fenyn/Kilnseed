@@ -4,6 +4,7 @@
 #include "KilnseedGameMode.generated.h"
 
 class UGameplayAbility;
+class UBlueprintDataAsset;
 
 UCLASS()
 class KILNSEED_API AKilnseedGameMode : public AGameModeBase
@@ -16,16 +17,19 @@ public:
 	void PostLogin(APlayerController* NewPlayer) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseAerolumQuota = 7;
+	int32 BaseAerolumQuota = 20;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseLoamspineQuota = 4;
+	int32 BaseLoamspineQuota = 15;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Terraforming")
-	int32 BaseTidefernQuota = 2;
+	int32 BaseTidefernQuota = 10;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> DefaultAbilities;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Building")
+	TArray<TObjectPtr<UBlueprintDataAsset>> AvailableBlueprints;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Respawn")
 	float RespawnDelay = 3.0f;

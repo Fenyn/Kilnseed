@@ -30,5 +30,6 @@ protected:
 	bool ReceiveItem_Implementation(ACarriableBase* Item, AKilnseedPlayerCharacter* Player) override;
 
 private:
-	FName GetAxisForPlantTag(const FGameplayTag& PlantTag) const;
+	FName GetPlantName(const FGameplayTag& PlantTag) const;
+	FName FindAcceptingAxis(FName PlantName) const;
 };

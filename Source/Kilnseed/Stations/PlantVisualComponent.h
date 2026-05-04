@@ -38,4 +38,7 @@ private:
 	static TArray<FPartDef> GetAerolumeDef();
 	static TArray<FPartDef> GetLoamspineDef();
 	static TArray<FPartDef> GetTidefernDef();
+	static TArray<FPartDef> GetGlowmossDef();
+	static TArray<FPartDef> GetCrystalvineDef();
+	static TArray<FPartDef> GetDeepcoralDef();
 };

@@ -62,6 +62,7 @@ public:
 
 protected:
 	void BeginPlay() override;
+	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
@@ -75,6 +76,15 @@ private:
 	FActiveGameplayEffectHandle ActiveWaterDrainHandle;
 
 	bool bPollinated = false;
+	bool bInBrownout = false;
+
+	UFUNCTION()
+	void OnBrownoutStarted();
+
+	UFUNCTION()
+	void OnBrownoutEnded();
+
+	void RefreshGrowthRate();
 
 	void Tick(float DeltaTime) override;
 	void SetState(FGameplayTag NewState);

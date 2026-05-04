@@ -5,6 +5,9 @@ namespace KilnseedTags
 	UE_DEFINE_GAMEPLAY_TAG(Plant_Aerolume,    "Seed.Plant.Aerolume");
 	UE_DEFINE_GAMEPLAY_TAG(Plant_Loamspine,   "Seed.Plant.Loamspine");
 	UE_DEFINE_GAMEPLAY_TAG(Plant_Tidefern,    "Seed.Plant.Tidefern");
+	UE_DEFINE_GAMEPLAY_TAG(Plant_Glowmoss,    "Seed.Plant.Glowmoss");
+	UE_DEFINE_GAMEPLAY_TAG(Plant_Crystalvine, "Seed.Plant.Crystalvine");
+	UE_DEFINE_GAMEPLAY_TAG(Plant_Deepcoral,   "Seed.Plant.Deepcoral");
 
 	UE_DEFINE_GAMEPLAY_TAG(Plot_Empty,        "Seed.Plot.Empty");
 	UE_DEFINE_GAMEPLAY_TAG(Plot_Planted,      "Seed.Plot.Planted");

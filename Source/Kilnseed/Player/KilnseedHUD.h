@@ -10,10 +10,12 @@ class KILNSEED_API AKilnseedHUD : public AHUD
 
 public:
 	void BeginPlay() override;
+	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	void DrawHUD() override;
 
 	void ShowNotification(const FString& Message);
 	void ShowMilestone(const FString& Message);
+	int32 GetUpgradeIndexAtCursor() const;
 
 private:
 	void DrawO2Bar(float O2Level);
@@ -22,6 +24,12 @@ private:
 	void DrawInteractPrompt();
 	void DrawCrosshair();
 	void DrawStateIndicators(class UAbilitySystemComponent* ASC);
+	void DrawBuildMode();
+	void DrawPowerStatus();
+	void DrawConsoleOverlay();
+
+	struct FHitRect { int32 Index; float X, Y, W, H; };
+	TArray<FHitRect> UpgradeHitRects;
 	void DrawNotification();
 	void DrawMilestoneToast();
 

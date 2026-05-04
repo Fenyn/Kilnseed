@@ -8,30 +8,52 @@ void UPowerManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	TotalSupply = 10.0f;
+
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnTickFired.AddDynamic(this, &UPowerManagerSubsystem::OnTickFired);
+	}
+}
+
+void UPowerManagerSubsystem::Deinitialize()
+{
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		EB->OnTickFired.RemoveDynamic(this, &UPowerManagerSubsystem::OnTickFired);
+	}
+
+	Super::Deinitialize();
 }
 
 void UPowerManagerSubsystem::AddSupply(float Watts)
 {
 	TotalSupply += Watts;
-	UpdateBrownoutState();
 }
 
 void UPowerManagerSubsystem::RemoveSupply(float Watts)
 {
 	TotalSupply = FMath::Max(0.0f, TotalSupply - Watts);
-	UpdateBrownoutState();
 }
 
 void UPowerManagerSubsystem::RegisterDemand(FName SourceId, float Watts)
 {
 	DemandSources.Add(SourceId, Watts);
-	UpdateBrownoutState();
 }
 
 void UPowerManagerSubsystem::UnregisterDemand(FName SourceId)
 {
 	DemandSources.Remove(SourceId);
-	UpdateBrownoutState();
+}
+
+void UPowerManagerSubsystem::AddBatteryCapacity(float WattSeconds)
+{
+	BatteryCapacity += WattSeconds;
+}
+
+void UPowerManagerSubsystem::RemoveBatteryCapacity(float WattSeconds)
+{
+	BatteryCapacity = FMath::Max(0.0f, BatteryCapacity - WattSeconds);
+	BatteryStored = FMath::Min(BatteryStored, BatteryCapacity);
 }
 
 float UPowerManagerSubsystem::GetTotalDemand() const
@@ -44,36 +66,74 @@ float UPowerManagerSubsystem::GetTotalDemand() const
 	return Total;
 }
 
-void UPowerManagerSubsystem::UpdateBrownoutState()
+void UPowerManagerSubsystem::OnTickFired(int32 TickNumber)
 {
-	bool bNewBrownout = GetTotalDemand() > TotalSupply;
+	UpdatePowerState(0.25f);
+}
 
-	if (bNewBrownout != bBrownout)
+void UPowerManagerSubsystem::UpdatePowerState(float DeltaTime)
+{
+	float Demand = GetTotalDemand();
+	float Surplus = TotalSupply - Demand;
+
+	bool bWasBrownout = bBrownout;
+	bDischarging = false;
+
+	if (Surplus >= 0.0f)
 	{
-		bBrownout = bNewBrownout;
-
-		if (UGameInstance* GI = GetWorld()->GetGameInstance())
+		// Excess power charges battery
+		if (BatteryCapacity > 0.0f)
 		{
-			if (UEventBusSubsystem* EventBus = GI->GetSubsystem<UEventBusSubsystem>())
-			{
-				if (bBrownout)
-					EventBus->OnBrownoutStarted.Broadcast();
-				else
-					EventBus->OnBrownoutEnded.Broadcast();
-
-				EventBus->OnPowerChanged.Broadcast(TotalSupply, GetTotalDemand());
-			}
+			float ChargeAmount = Surplus * DeltaTime;
+			BatteryStored = FMath::Min(BatteryStored + ChargeAmount, BatteryCapacity);
 		}
+		bBrownout = false;
+	}
+	else
+	{
+		// Deficit — try to cover with battery
+		float Deficit = -Surplus;
+		float DischargeNeeded = Deficit * DeltaTime;
 
-		if (AKilnseedGameState* GS = GetWorld()->GetGameState<AKilnseedGameState>())
+		if (BatteryStored > 0.0f)
 		{
-			if (UKilnseedAbilitySystemComponent* ASC = GS->GetKilnseedASC())
+			float Discharged = FMath::Min(DischargeNeeded, BatteryStored);
+			BatteryStored -= Discharged;
+			bDischarging = true;
+			bBrownout = (Discharged < DischargeNeeded - KINDA_SMALL_NUMBER);
+		}
+		else
+		{
+			bBrownout = true;
+		}
+	}
+
+	if (bBrownout != bWasBrownout)
+	{
+		BroadcastStateChange();
+	}
+}
+
+void UPowerManagerSubsystem::BroadcastStateChange()
+{
+	if (UEventBusSubsystem* EB = UEventBusSubsystem::Get(this))
+	{
+		if (bBrownout)
+			EB->OnBrownoutStarted.Broadcast();
+		else
+			EB->OnBrownoutEnded.Broadcast();
+
+		EB->OnPowerChanged.Broadcast(TotalSupply, GetTotalDemand());
+	}
+
+	if (AKilnseedGameState* GS = GetWorld()->GetGameState<AKilnseedGameState>())
+	{
+		if (UKilnseedAbilitySystemComponent* ASC = GS->GetKilnseedASC())
+		{
+			if (const UKilnseedWorldAttributeSet* Attrs = ASC->GetSet<UKilnseedWorldAttributeSet>())
 			{
-				if (const UKilnseedWorldAttributeSet* Attrs = ASC->GetSet<UKilnseedWorldAttributeSet>())
-				{
-					const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerSupply(TotalSupply);
-					const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerDemand(GetTotalDemand());
-				}
+				const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerSupply(TotalSupply);
+				const_cast<UKilnseedWorldAttributeSet*>(Attrs)->SetPowerDemand(GetTotalDemand());
 			}
 		}
 	}

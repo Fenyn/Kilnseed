@@ -12,6 +12,7 @@ class KILNSEED_API UMilestoneManagerSubsystem : public UWorldSubsystem
 
 public:
 	void Initialize(FSubsystemCollectionBase& Collection) override;
+	void Deinitialize() override;
 
 	UFUNCTION(BlueprintCallable, Category = "Milestones")
 	void CheckMilestones();

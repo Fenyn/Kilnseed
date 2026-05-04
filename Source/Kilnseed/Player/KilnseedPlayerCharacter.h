@@ -14,6 +14,7 @@ class UInputAction;
 class UKilnseedAbilitySystemComponent;
 class UGameplayAbility;
 class UGameplayEffect;
+class UBlueprintDataAsset;
 struct FInputActionValue;
 struct FOnAttributeChangeData;
 
@@ -41,6 +42,19 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
 	TSubclassOf<AActor> HarvestCrateClass;
+
+	bool IsInBuildMode() const { return bInBuildMode; }
+	UBlueprintDataAsset* GetCurrentBlueprint() const;
+	void ExitBuildMode();
+	bool IsBlueprintUnlocked(const UBlueprintDataAsset* BP) const;
+
+	bool IsInConsoleMode() const { return bInConsoleMode; }
+	void EnterConsoleMode(class AColonyConsoleActor* Console);
+	void ExitConsoleMode();
+	void SelectConsoleUpgrade(int32 Index);
+
+	UPROPERTY()
+	TObjectPtr<class AColonyConsoleActor> ActiveConsole;
 
 protected:
 	void BeginPlay() override;
@@ -72,6 +86,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_BuildMenu;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_BuildSelect;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Flashlight;
@@ -131,5 +148,13 @@ private:
 	void HandleInteract();
 	void HandlePrimaryAction();
 	void HandleBuildMenu();
+	void HandleBuildSelect(const FInputActionValue& Value);
 	void HandleFlashlight();
+
+	void EnterBuildMode();
+	void SelectBlueprint(int32 Index);
+
+	bool bInBuildMode = false;
+	int32 CurrentBlueprintIndex = 0;
+	bool bInConsoleMode = false;
 };

@@ -22,5 +22,11 @@ public:
 	int32 ResourceCost = 2;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Blueprint")
+	float PowerProvided = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Blueprint")
+	bool bRequiresSoil = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Blueprint")
 	FName UnlockCondition;
 };
